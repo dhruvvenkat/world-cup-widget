@@ -234,7 +234,7 @@ class WorldCupWidget(QWidget):
         self.score.setText(match.score_text)
         self.away_team.setText(match.away_team.display_name_with_flag)
         self.away_record.setText(match.away_team.record_text)
-        details = [part for part in [match.stage, match.venue, match.kickoff_text, f"Source: {match.source}"] if part]
+        details = [part for part in [match.venue, match.kickoff_text] if part]
         if error:
             details.append(f"Fallback active: {error}")
         self.detail.setText("\n".join(details))
@@ -249,10 +249,8 @@ class WorldCupWidget(QWidget):
             self.detail.setText("\n".join(
                 part
                 for part in [
-                    self.current_match.stage,
                     self.current_match.venue,
                     self.current_match.kickoff_text,
-                    f"Source: {self.current_match.source}",
                 ]
                 if part
             ))
