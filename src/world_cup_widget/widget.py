@@ -79,13 +79,16 @@ class WorldCupWidget(QWidget):
     def refresh(self) -> None:
         if self._closing:
             return
-        if self.worker and self.worker.isRunning():
+        if self.worker and self._worker_is_running():
             return
         self.status.setText("Refreshing...")
         self.worker = MatchFetchWorker(self.provider)
         self.worker.fetched.connect(self.render_match)
-        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self._worker_finished)
         self.worker.start()
+
+    def _worker_finished(self) -> None:
+        self.worker = None
 
     def render_match(self, match: Match | None, error: str = "") -> None:
         if self._closing:
@@ -117,15 +120,23 @@ class WorldCupWidget(QWidget):
         self._closing = True
         self.timer.stop()
         self.provider.close()
-        if self.worker and self.worker.isRunning():
+        if self.worker and self._worker_is_running():
             try:
                 self.worker.fetched.disconnect(self.render_match)
             except RuntimeError:
                 pass
             self.worker.wait(250)
-            if self.worker.isRunning():
+            if self.worker and self._worker_is_running():
                 self.worker.terminate()
                 self.worker.wait(250)
+            self.worker = None
+
+    def _worker_is_running(self) -> bool:
+        try:
+            return bool(self.worker and self.worker.isRunning())
+        except RuntimeError:
+            self.worker = None
+            return False
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         self.shutdown()
@@ -144,12 +155,13 @@ class WorldCupWidget(QWidget):
             self.provider.close()
         except Exception:
             pass
-        if self.worker and self.worker.isRunning():
+        if self.worker and self._worker_is_running():
             try:
                 self.worker.fetched.disconnect(self.render_match)
             except RuntimeError:
                 pass
             self.worker.terminate()
+            self.worker = None
         os._exit(exit_code)
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API name
