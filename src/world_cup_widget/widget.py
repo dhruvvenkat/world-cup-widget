@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QMenu, QVBoxLay
 from .models import Match, MatchStatus
 from .provider import FallbackProvider
 
+COMIC_FONT = "Comic Sans MS"
+
 
 class MatchFetchWorker(QThread):
     fetched = Signal(object, str)
@@ -87,18 +89,18 @@ class WorldCupWidget(QWidget):
         self.setMinimumWidth(340)
 
         self.title = QLabel("World Cup")
-        self.title.setFont(QFont("Inter", 13, QFont.Bold))
+        self.title.setFont(QFont(COMIC_FONT, 13, QFont.Bold))
         self.status = QLabel("Loading match...")
         self.status.setObjectName("status")
         self.live_underline = LiveUnderline()
         self.home_team = QLabel("-")
-        self.home_team.setFont(QFont("Inter", 18, QFont.Bold))
+        self.home_team.setFont(QFont(COMIC_FONT, 18, QFont.Bold))
         self.home_record = QLabel("-")
         self.home_record.setObjectName("record")
         self.score = QLabel("vs")
-        self.score.setFont(QFont("Inter", 28, QFont.Bold))
+        self.score.setFont(QFont(COMIC_FONT, 28, QFont.Bold))
         self.away_team = QLabel("-")
-        self.away_team.setFont(QFont("Inter", 18, QFont.Bold))
+        self.away_team.setFont(QFont(COMIC_FONT, 18, QFont.Bold))
         self.away_record = QLabel("-")
         self.away_record.setObjectName("record")
         self.detail = QLabel("")
@@ -131,6 +133,7 @@ class WorldCupWidget(QWidget):
             QWidget {
                 background: transparent;
                 color: #f8fafc;
+                font-family: "Comic Sans MS", "Comic Neue", "Comic Relief", cursive;
                 border-radius: 22px;
             }
             QLabel { background: transparent; }
