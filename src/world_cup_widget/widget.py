@@ -81,19 +81,29 @@ class StandingsPopup(QFrame):
     def __init__(self) -> None:
         super().__init__(None, Qt.ToolTip | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TranslucentBackground)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(14, 10, 14, 10)
         self.layout.setSpacing(4)
         self.setStyleSheet('''
             QFrame {
-                background-color: rgba(2, 6, 23, 235);
-                border: 1px solid rgba(248, 113, 113, 190);
+                background: transparent;
                 border-radius: 12px;
                 color: #f8fafc;
                 font-family: "Comic Sans MS", "Comic Neue", "Comic Relief", cursive;
             }
             QLabel { background: transparent; }
         ''')
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(self.rect().adjusted(0, 0, -1, -1), 12, 12)
+        painter.fillPath(path, QColor(2, 6, 23, 235))
+        painter.setPen(QPen(QColor(248, 113, 113, 190), 1))
+        painter.drawPath(path)
+        super().paintEvent(event)
 
     def set_match(self, match: Match) -> None:
         while self.layout.count():
