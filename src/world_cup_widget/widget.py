@@ -80,7 +80,7 @@ class WorldCupWidget(QWidget):
 
         self.setStyleSheet("""
             QWidget {
-                background-color: rgba(18, 24, 38, 232);
+                background-color: rgba(2, 6, 23, 190);
                 color: #f8fafc;
                 border-radius: 22px;
             }
