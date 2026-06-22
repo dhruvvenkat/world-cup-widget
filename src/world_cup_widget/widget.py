@@ -28,6 +28,11 @@ class WorldCupWidget(QWidget):
         self.provider = provider
         self.worker: MatchFetchWorker | None = None
         self.drag_position = None
+        self._closing = False
+
+        app = QApplication.instance()
+        if app:
+            app.aboutToQuit.connect(self.shutdown)
 
         self.setWindowTitle("World Cup Widget")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -71,14 +76,19 @@ class WorldCupWidget(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        if self._closing:
+            return
         if self.worker and self.worker.isRunning():
             return
         self.status.setText("Refreshing...")
         self.worker = MatchFetchWorker(self.provider)
         self.worker.fetched.connect(self.render_match)
+        self.worker.finished.connect(self.worker.deleteLater)
         self.worker.start()
 
     def render_match(self, match: Match | None, error: str = "") -> None:
+        if self._closing:
+            return
         if not match:
             self.status.setText("No World Cup match found")
             self.teams.setText("Check configuration")
@@ -99,6 +109,26 @@ class WorldCupWidget(QWidget):
             details.append(f"Fallback active: {error}")
         self.detail.setText("\n".join(details))
         self.updated.setText(f"Updated {datetime.now().strftime('%H:%M:%S')}")
+
+    def shutdown(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self.timer.stop()
+        self.provider.close()
+        if self.worker and self.worker.isRunning():
+            try:
+                self.worker.fetched.disconnect(self.render_match)
+            except RuntimeError:
+                pass
+            self.worker.wait(250)
+            if self.worker.isRunning():
+                self.worker.terminate()
+                self.worker.wait(250)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self.shutdown()
+        event.accept()
 
     def contextMenuEvent(self, event) -> None:  # noqa: N802 - Qt API name
         menu = QMenu(self)

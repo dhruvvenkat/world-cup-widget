@@ -133,6 +133,11 @@ class FallbackProvider(MatchProvider):
                 self.last_error = str(exc)
         return self.fallback.current_match()
 
+    def close(self) -> None:
+        if self.primary:
+            self.primary.close()
+        self.fallback.close()
+
 
 def build_provider(settings: Settings) -> FallbackProvider:
     primary: MatchProvider | None = None
