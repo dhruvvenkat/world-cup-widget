@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "world-cup-widget"
+version = "0.1.0"
+description = "Native Python desktop widget showing the current World Cup match."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PySide6>=6.7",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+world-cup-widget = "world_cup_widget.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
