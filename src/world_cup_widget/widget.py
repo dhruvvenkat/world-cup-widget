@@ -7,12 +7,21 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .models import Match, MatchStatus
 from .provider import FallbackProvider
 
-COMIC_FONT = "Comic Sans MS"
+WIDGET_FONT = "DejaVu Sans ExtraLight"
 
 
 class MatchFetchWorker(QThread):
@@ -96,15 +105,15 @@ class StandingsPopup(QFrame):
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(14, 10, 14, 10)
         self.layout.setSpacing(4)
-        self.setStyleSheet('''
+        self.setStyleSheet("""
             QFrame {
                 background: transparent;
                 border-radius: 12px;
                 color: #f8fafc;
-                font-family: "Comic Sans MS", "Comic Neue", "Comic Relief", cursive;
+                font-family: "DejaVu Sans ExtraLight", "DejaVu Sans", sans-serif;
             }
             QLabel { background: transparent; }
-        ''')
+        """)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         painter = QPainter(self)
@@ -122,20 +131,29 @@ class StandingsPopup(QFrame):
             if item.widget():
                 item.widget().deleteLater()
         title = QLabel(match.group_label or "Group")
-        title.setFont(QFont(COMIC_FONT, 12, QFont.Bold))
+        title.setFont(QFont(WIDGET_FONT, 12, QFont.ExtraLight))
         self.layout.addWidget(title)
         if not match.group_standings:
             self.layout.addWidget(QLabel("Standings unavailable"))
             return
         for entry in match.group_standings:
             prefix = f"{entry.position}. " if entry.position else ""
-            self.layout.addWidget(QLabel(f"{prefix}{entry.team.display_name_with_flag}  {entry.record.display_text}"))
+            self.layout.addWidget(
+                QLabel(
+                    f"{prefix}{entry.team.display_name_with_flag}  {entry.record.display_text}"
+                )
+            )
 
 
 class WorldCupWidget(QWidget):
     match_updated = Signal(object)
 
-    def __init__(self, provider: FallbackProvider, refresh_seconds: int = 60, live_refresh_seconds: int = 15) -> None:
+    def __init__(
+        self,
+        provider: FallbackProvider,
+        refresh_seconds: int = 60,
+        live_refresh_seconds: int = 15,
+    ) -> None:
         super().__init__()
         self.provider = provider
         self.worker: MatchFetchWorker | None = None
@@ -157,18 +175,18 @@ class WorldCupWidget(QWidget):
         self.setMinimumWidth(340)
 
         self.title = QLabel("World Cup")
-        self.title.setFont(QFont(COMIC_FONT, 13, QFont.Bold))
+        self.title.setFont(QFont(WIDGET_FONT, 13, QFont.ExtraLight))
         self.status = QLabel("Loading match...")
         self.status.setObjectName("status")
         self.live_underline = LiveUnderline()
         self.home_team = QLabel("-")
-        self.home_team.setFont(QFont(COMIC_FONT, 18, QFont.Bold))
+        self.home_team.setFont(QFont(WIDGET_FONT, 18, QFont.ExtraLight))
         self.home_record = QLabel("-")
         self.home_record.setObjectName("record")
         self.score = QLabel("vs")
-        self.score.setFont(QFont(COMIC_FONT, 28, QFont.Bold))
+        self.score.setFont(QFont(WIDGET_FONT, 28, QFont.ExtraLight))
         self.away_team = QLabel("-")
-        self.away_team.setFont(QFont(COMIC_FONT, 18, QFont.Bold))
+        self.away_team.setFont(QFont(WIDGET_FONT, 18, QFont.ExtraLight))
         self.away_record = QLabel("-")
         self.away_record.setObjectName("record")
         self.detail = QLabel("")
@@ -196,7 +214,13 @@ class WorldCupWidget(QWidget):
         self.main_layout = layout
         layout.setContentsMargins(22, 18, 22, 18)
         layout.setSpacing(7)
-        for label in [self.title, self.status, self.group_detail, self.detail, self.updated]:
+        for label in [
+            self.title,
+            self.status,
+            self.group_detail,
+            self.detail,
+            self.updated,
+        ]:
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label)
             if label is self.status:
@@ -207,7 +231,13 @@ class WorldCupWidget(QWidget):
         match_grid = QGridLayout()
         match_grid.setHorizontalSpacing(14)
         match_grid.setVerticalSpacing(2)
-        for label in [self.home_team, self.home_record, self.score, self.away_team, self.away_record]:
+        for label in [
+            self.home_team,
+            self.home_record,
+            self.score,
+            self.away_team,
+            self.away_record,
+        ]:
             label.setAlignment(Qt.AlignCenter)
         match_grid.addWidget(self.home_team, 0, 0)
         match_grid.addWidget(self.score, 0, 1, 2, 1)
@@ -220,7 +250,7 @@ class WorldCupWidget(QWidget):
             QWidget {
                 background: transparent;
                 color: #f8fafc;
-                font-family: "Comic Sans MS", "Comic Neue", "Comic Relief", cursive;
+                font-family: "DejaVu Sans ExtraLight", "DejaVu Sans", sans-serif;
                 border-radius: 22px;
             }
             QLabel { background: transparent; }
@@ -275,7 +305,12 @@ class WorldCupWidget(QWidget):
         self._reinforce_x11_above_state()
 
     def _overlay_flags(self) -> Qt.WindowType:
-        return Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
+        return (
+            Qt.Window
+            | Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.WindowDoesNotAcceptFocus
+        )
 
     def _reinforce_x11_above_state(self) -> None:
         if not os.getenv("DISPLAY") or not shutil.which("wmctrl"):
@@ -321,7 +356,9 @@ class WorldCupWidget(QWidget):
             return
         self.upcoming_dropdown.setMinimumHeight(0)
         self.upcoming_dropdown.setMaximumHeight(16777215)
-        self.main_layout.insertWidget(self.main_layout.indexOf(self.upcoming_button) + 1, self.upcoming_dropdown)
+        self.main_layout.insertWidget(
+            self.main_layout.indexOf(self.upcoming_button) + 1, self.upcoming_dropdown
+        )
         self.upcoming_dropdown.show()
         self.upcoming_button.setText("Upcoming ▴")
         self._set_upcoming_rows(["Loading..."])
@@ -338,11 +375,15 @@ class WorldCupWidget(QWidget):
             self._set_upcoming_rows(["No upcoming matches"])
             self._resize_to_contents()
             return
-        self._set_upcoming_rows([self._format_upcoming_match(match) for match in matches[:5]])
+        self._set_upcoming_rows(
+            [self._format_upcoming_match(match) for match in matches[:5]]
+        )
         self._resize_to_contents()
 
     def _format_upcoming_match(self, match: Match) -> str:
-        kickoff = match.kickoff.astimezone().strftime("%a %H:%M") if match.kickoff else "TBD"
+        kickoff = (
+            match.kickoff.astimezone().strftime("%a %H:%M") if match.kickoff else "TBD"
+        )
         return f"{kickoff} · {match.home_team.display_name_with_flag} vs {match.away_team.display_name_with_flag}"
 
     def _set_upcoming_rows(self, rows: list[str]) -> None:
@@ -413,14 +454,16 @@ class WorldCupWidget(QWidget):
             return
         self.status.setText(self.current_match.status_text)
         if self.current_match.status is MatchStatus.SCHEDULED:
-            self.detail.setText("\n".join(
-                part
-                for part in [
-                    self.current_match.venue,
-                    self.current_match.kickoff_text,
-                ]
-                if part
-            ))
+            self.detail.setText(
+                "\n".join(
+                    part
+                    for part in [
+                        self.current_match.venue,
+                        self.current_match.kickoff_text,
+                    ]
+                    if part
+                )
+            )
         if self.current_match.status is MatchStatus.LIVE:
             self.match_updated.emit(self.current_match)
 
@@ -524,7 +567,9 @@ class WorldCupWidget(QWidget):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API name
         if event.button() == Qt.LeftButton:
-            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.drag_position = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API name

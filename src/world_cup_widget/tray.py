@@ -80,8 +80,10 @@ class TrayIndicator:
         painter.setPen(QColor(56, 189, 248))
         painter.drawEllipse(3, 3, 58, 58)
         painter.setPen(QColor(248, 250, 252))
-        font = QFont("Comic Sans MS", 18, QFont.Bold)
+        font = QFont("DejaVu Sans ExtraLight", 18, QFont.ExtraLight)
         painter.setFont(font)
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, text if len(text) <= 3 else "⚽")
+        painter.drawText(
+            pixmap.rect(), Qt.AlignCenter, text if len(text) <= 3 else "⚽"
+        )
         painter.end()
         return QIcon(pixmap)
