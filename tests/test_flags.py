@@ -46,3 +46,17 @@ def test_live_match_status_uses_elapsed_kickoff_minute():
     assert match.live_minute in {25, 26}
     assert match.status_text.startswith("LIVE ")
     assert match.score_text == "0 - 0"
+
+
+def test_live_match_status_formats_stoppage_time():
+    match = Match(
+        competition="World Cup",
+        home_team=Team("France", "FRA"),
+        away_team=Team("Brazil", "BRA"),
+        kickoff=datetime.now(timezone.utc),
+        status=MatchStatus.LIVE,
+        minute=45,
+        stoppage_minute=1,
+    )
+
+    assert match.status_text == "LIVE 45 + 1"

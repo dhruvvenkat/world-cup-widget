@@ -69,6 +69,7 @@ class Match:
     home_score: int | None = None
     away_score: int | None = None
     minute: int | None = None
+    stoppage_minute: int | None = None
     venue: str | None = None
     stage: str | None = None
     group: str | None = None
@@ -100,8 +101,8 @@ class Match:
     @property
     def status_text(self) -> str:
         if self.status is MatchStatus.LIVE:
-            minute = self.live_minute
-            return f"LIVE {minute}'" if minute else "LIVE"
+            minute = self.live_clock_text
+            return f"LIVE {minute}" if minute else "LIVE"
         if self.status is MatchStatus.PAUSED:
             return "Halftime"
         if self.status is MatchStatus.SCHEDULED:
@@ -119,6 +120,15 @@ class Match:
         elapsed = datetime.now(timezone.utc) - self.kickoff.astimezone(timezone.utc)
         minute = int(elapsed.total_seconds() // 60) + 1
         return max(1, min(minute, 120))
+
+    @property
+    def live_clock_text(self) -> str | None:
+        minute = self.live_minute
+        if minute is None:
+            return None
+        if self.stoppage_minute:
+            return f"{minute} + {self.stoppage_minute}"
+        return f"{minute}'"
 
     @property
     def sort_key(self) -> tuple[int, float]:

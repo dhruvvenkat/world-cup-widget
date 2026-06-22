@@ -157,6 +157,14 @@ def test_espn_scoreboard_provider_parses_halftime_as_paused():
     assert status is MatchStatus.PAUSED
 
 
+def test_espn_scoreboard_provider_parses_stoppage_time():
+    provider = EspnScoreboardProvider(session=FakeEspnSession())
+    status = {"type": {"state": "in", "name": "STATUS_FIRST_HALF", "shortDetail": "45'+2'"}}
+
+    assert provider._parse_minute(status) == 45
+    assert provider._parse_stoppage_minute(status) == 2
+
+
 def test_build_provider_without_token_uses_fallback():
     provider = build_provider(Settings(football_data_token=None))
     assert provider.primary is not None

@@ -168,6 +168,7 @@ class FootballDataProvider(MatchProvider):
             home_score=match.home_score,
             away_score=match.away_score,
             minute=match.minute,
+            stoppage_minute=match.stoppage_minute,
             venue=match.venue,
             stage=match.stage,
             group=match.group,
@@ -278,6 +279,7 @@ class EspnScoreboardProvider(MatchProvider):
             home_score=self._parse_score(home.get("score")),
             away_score=self._parse_score(away.get("score")),
             minute=self._parse_minute(competition.get("status") or event.get("status") or {}),
+            stoppage_minute=self._parse_stoppage_minute(competition.get("status") or event.get("status") or {}),
             venue=(competition.get("venue") or {}).get("fullName"),
             stage=event.get("season", {}).get("slug"),
             group=None,
@@ -318,7 +320,16 @@ class EspnScoreboardProvider(MatchProvider):
 
     def _parse_minute(self, status: dict[str, Any]) -> int | None:
         display = (status.get("type") or {}).get("shortDetail") or status.get("displayClock") or ""
-        digits = "".join(char for char in display if char.isdigit())
+        base = display.split("+", 1)[0]
+        digits = "".join(char for char in base if char.isdigit())
+        return int(digits) if digits else None
+
+    def _parse_stoppage_minute(self, status: dict[str, Any]) -> int | None:
+        display = (status.get("type") or {}).get("shortDetail") or status.get("displayClock") or ""
+        if "+" not in display:
+            return None
+        extra = display.split("+", 1)[1]
+        digits = "".join(char for char in extra if char.isdigit())
         return int(digits) if digits else None
 
     def _parse_score(self, value: str | int | None) -> int | None:
@@ -387,6 +398,7 @@ class CompositeProvider(MatchProvider):
             home_score=primary.home_score,
             away_score=primary.away_score,
             minute=primary.minute,
+            stoppage_minute=primary.stoppage_minute,
             venue=primary.venue or secondary.venue,
             stage=primary.stage or secondary.stage,
             group=primary.group or secondary.group,
