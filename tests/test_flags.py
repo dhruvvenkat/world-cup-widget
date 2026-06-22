@@ -41,3 +41,4 @@ def test_live_match_status_uses_elapsed_kickoff_minute():
 
     assert match.live_minute in {25, 26}
     assert match.status_text.startswith("LIVE ")
+    assert match.score_text == "0 - 0"

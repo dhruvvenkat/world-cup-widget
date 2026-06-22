@@ -68,6 +68,8 @@ class Match:
     @property
     def score_text(self) -> str:
         if self.home_score is None or self.away_score is None:
+            if self.status is MatchStatus.LIVE:
+                return "0 - 0"
             return "vs"
         return f"{self.home_score} - {self.away_score}"
 

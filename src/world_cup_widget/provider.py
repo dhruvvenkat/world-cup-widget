@@ -40,6 +40,8 @@ class FootballDataProvider(MatchProvider):
         self.settings = settings
         self.session = session or requests.Session()
         self.session.headers.update({"X-Auth-Token": settings.football_data_token})
+        self._records_cache: dict[str, TeamRecord] = {}
+        self._records_cache_at: datetime | None = None
 
     def current_match(self) -> Match | None:
         matches = self._fetch_matches()
@@ -67,6 +69,9 @@ class FootballDataProvider(MatchProvider):
         return [self._parse_match(item) for item in payload.get("matches", [])]
 
     def _fetch_records(self) -> dict[str, TeamRecord]:
+        if self._records_cache_at and datetime.now(timezone.utc) - self._records_cache_at < timedelta(minutes=5):
+            return self._records_cache
+
         params: dict[str, int] = {}
         if self.settings.season:
             params["season"] = self.settings.season
@@ -74,7 +79,7 @@ class FootballDataProvider(MatchProvider):
         url = f"{self.BASE_URL}/competitions/{self.settings.competition_code}/standings"
         response = self.session.get(url, params=params, timeout=(2, 3))
         if response.status_code >= 400:
-            return {}
+            return self._records_cache
 
         records: dict[str, TeamRecord] = {}
         for standing in response.json().get("standings", []):
@@ -88,6 +93,8 @@ class FootballDataProvider(MatchProvider):
                 )
                 for key in self._team_keys(team):
                     records[key] = record
+        self._records_cache = records
+        self._records_cache_at = datetime.now(timezone.utc)
         return records
 
     def _with_records(self, match: Match, records: dict[str, TeamRecord]) -> Match:
@@ -110,13 +117,14 @@ class FootballDataProvider(MatchProvider):
         return Team(name=team.name, short_name=team.short_name, crest_url=team.crest_url, record=record)
 
     def _parse_match(self, item: dict[str, Any]) -> Match:
-        status = self._parse_status(item.get("status"))
+        kickoff = self._parse_datetime(item.get("utcDate"))
+        status = self._parse_status(item.get("status"), kickoff)
         score = item.get("score", {}).get("fullTime", {}) or {}
         return Match(
             competition=item.get("competition", {}).get("name") or "World Cup",
             home_team=self._parse_team(item.get("homeTeam") or {}),
             away_team=self._parse_team(item.get("awayTeam") or {}),
-            kickoff=self._parse_datetime(item.get("utcDate")),
+            kickoff=kickoff,
             status=status,
             home_score=score.get("home"),
             away_score=score.get("away"),
@@ -138,14 +146,23 @@ class FootballDataProvider(MatchProvider):
     def close(self) -> None:
         self.session.close()
 
-    def _parse_status(self, status: str | None) -> MatchStatus:
+    def _parse_status(self, status: str | None, kickoff: datetime | None = None) -> MatchStatus:
         if status in self.LIVE_STATUSES:
+            return MatchStatus.LIVE
+        if status in self.SCHEDULED_STATUSES and self._kickoff_is_current(kickoff):
             return MatchStatus.LIVE
         if status in self.SCHEDULED_STATUSES:
             return MatchStatus.SCHEDULED
         if status == "FINISHED":
             return MatchStatus.FINISHED
         return MatchStatus.UNKNOWN
+
+    def _kickoff_is_current(self, kickoff: datetime | None) -> bool:
+        if not kickoff:
+            return False
+        now = datetime.now(timezone.utc)
+        elapsed = now - kickoff.astimezone(timezone.utc)
+        return timedelta(minutes=0) <= elapsed <= timedelta(hours=2, minutes=30)
 
     def _parse_datetime(self, value: str | None) -> datetime | None:
         if not value:
@@ -175,6 +192,7 @@ class FallbackProvider(MatchProvider):
         self.primary = primary
         self.fallback = fallback
         self.last_error: str | None = None
+        self.last_primary_match: Match | None = None
 
     def current_match(self) -> Match | None:
         if self.primary:
@@ -182,9 +200,12 @@ class FallbackProvider(MatchProvider):
                 match = self.primary.current_match()
                 if match:
                     self.last_error = None
+                    self.last_primary_match = match
                     return match
             except Exception as exc:  # keep widget alive on network/API issues
                 self.last_error = str(exc)
+                if self.last_primary_match:
+                    return self.last_primary_match
         return self.fallback.current_match()
 
     def close(self) -> None:

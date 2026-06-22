@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from world_cup_widget.config import Settings
 from world_cup_widget.models import MatchStatus
-from world_cup_widget.provider import FootballDataProvider, SampleProvider, build_provider
+from world_cup_widget.models import Match, Team
+from world_cup_widget.provider import FallbackProvider, FootballDataProvider, MatchProvider, SampleProvider, build_provider
 
 
 def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
@@ -72,6 +73,11 @@ class FakeSession:
         return FakeResponse(MATCHES_PAYLOAD)
 
 
+class ErrorProvider(MatchProvider):
+    def current_match(self):
+        raise RuntimeError("rate limited")
+
+
 def test_sample_provider_returns_config_hint():
     match = SampleProvider().current_match()
     assert match.status is MatchStatus.SCHEDULED
@@ -95,7 +101,36 @@ def test_football_data_provider_parses_match():
     assert session.headers["X-Auth-Token"] == "token"
 
 
+def test_football_data_provider_infers_live_when_status_lags_after_kickoff():
+    provider = FootballDataProvider(Settings(football_data_token="token"), session=FakeSession())
+    kickoff = datetime.now(timezone.utc) - timedelta(minutes=8)
+
+    status = provider._parse_status("TIMED", kickoff)
+
+    assert status is MatchStatus.LIVE
+
+
 def test_build_provider_without_token_uses_fallback():
     provider = build_provider(Settings(football_data_token=None))
     assert provider.primary is None
     assert provider.current_match().source == "sample"
+
+
+def test_fallback_provider_keeps_last_primary_match_on_transient_error():
+    provider = FallbackProvider(ErrorProvider(), SampleProvider())
+    provider.last_primary_match = Match(
+        competition="World Cup",
+        home_team=Team("New Zealand", "NZL"),
+        away_team=Team("Egypt", "EGY"),
+        kickoff=datetime.now(timezone.utc) - timedelta(minutes=7),
+        status=MatchStatus.LIVE,
+        home_score=0,
+        away_score=0,
+        source="football-data.org",
+    )
+
+    match = provider.current_match()
+
+    assert match.source == "football-data.org"
+    assert match.status is MatchStatus.LIVE
+    assert provider.last_error == "rate limited"
