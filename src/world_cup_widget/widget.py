@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
@@ -129,6 +130,32 @@ class WorldCupWidget(QWidget):
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         self.shutdown()
         event.accept()
+
+    def fast_exit(self, exit_code: int = 0) -> None:
+        """Exit immediately for development interrupts.
+
+        Qt can otherwise wait on worker-thread cleanup while a request is in
+        flight. For Ctrl+C/Escape during development, prefer process exit over
+        graceful cleanup latency.
+        """
+        self._closing = True
+        self.timer.stop()
+        try:
+            self.provider.close()
+        except Exception:
+            pass
+        if self.worker and self.worker.isRunning():
+            try:
+                self.worker.fetched.disconnect(self.render_match)
+            except RuntimeError:
+                pass
+            self.worker.terminate()
+        os._exit(exit_code)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if event.key() == Qt.Key_Escape:
+            self.fast_exit(0)
+        super().keyPressEvent(event)
 
     def contextMenuEvent(self, event) -> None:  # noqa: N802 - Qt API name
         menu = QMenu(self)
