@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from .config import Settings
-from .models import Match, MatchStatus, Team
+from .models import Match, MatchStatus, Team, TeamRecord
 
 
 class MatchProviderError(RuntimeError):
@@ -18,6 +18,9 @@ class MatchProvider(ABC):
     @abstractmethod
     def current_match(self) -> Match | None:
         """Return the live match, or the next scheduled match if nothing is live."""
+
+    def close(self) -> None:
+        """Release provider resources, if any."""
 
 
 class FootballDataProvider(MatchProvider):
@@ -42,7 +45,9 @@ class FootballDataProvider(MatchProvider):
         matches = self._fetch_matches()
         if not matches:
             return None
-        return sorted(matches, key=lambda match: match.sort_key)[0]
+        match = sorted(matches, key=lambda match: match.sort_key)[0]
+        records = self._fetch_records()
+        return self._with_records(match, records)
 
     def _fetch_matches(self) -> list[Match]:
         today = datetime.now(timezone.utc).date()
@@ -54,12 +59,55 @@ class FootballDataProvider(MatchProvider):
             params["season"] = self.settings.season
 
         url = f"{self.BASE_URL}/competitions/{self.settings.competition_code}/matches"
-        response = self.session.get(url, params=params, timeout=10)
+        response = self.session.get(url, params=params, timeout=(2, 3))
         if response.status_code >= 400:
             raise MatchProviderError(f"Football-Data request failed: {response.status_code} {response.text[:160]}")
 
         payload = response.json()
         return [self._parse_match(item) for item in payload.get("matches", [])]
+
+    def _fetch_records(self) -> dict[str, TeamRecord]:
+        params: dict[str, int] = {}
+        if self.settings.season:
+            params["season"] = self.settings.season
+
+        url = f"{self.BASE_URL}/competitions/{self.settings.competition_code}/standings"
+        response = self.session.get(url, params=params, timeout=(2, 3))
+        if response.status_code >= 400:
+            return {}
+
+        records: dict[str, TeamRecord] = {}
+        for standing in response.json().get("standings", []):
+            for row in standing.get("table", []):
+                team = row.get("team") or {}
+                record = TeamRecord(
+                    wins=int(row.get("won") or 0),
+                    draws=int(row.get("draw") or 0),
+                    losses=int(row.get("lost") or 0),
+                    points=row.get("points"),
+                )
+                for key in self._team_keys(team):
+                    records[key] = record
+        return records
+
+    def _with_records(self, match: Match, records: dict[str, TeamRecord]) -> Match:
+        return Match(
+            competition=match.competition,
+            home_team=self._team_with_record(match.home_team, records),
+            away_team=self._team_with_record(match.away_team, records),
+            kickoff=match.kickoff,
+            status=match.status,
+            home_score=match.home_score,
+            away_score=match.away_score,
+            minute=match.minute,
+            venue=match.venue,
+            stage=match.stage,
+            source=match.source,
+        )
+
+    def _team_with_record(self, team: Team, records: dict[str, TeamRecord]) -> Team:
+        record = records.get(team.name.upper()) or records.get((team.short_name or "").upper())
+        return Team(name=team.name, short_name=team.short_name, crest_url=team.crest_url, record=record)
 
     def _parse_match(self, item: dict[str, Any]) -> Match:
         status = self._parse_status(item.get("status"))
@@ -84,6 +132,12 @@ class FootballDataProvider(MatchProvider):
             crest_url=item.get("crest"),
         )
 
+    def _team_keys(self, item: dict[str, Any]) -> set[str]:
+        return {str(value).upper() for value in [item.get("name"), item.get("tla"), item.get("shortName")] if value}
+
+    def close(self) -> None:
+        self.session.close()
+
     def _parse_status(self, status: str | None) -> MatchStatus:
         if status in self.LIVE_STATUSES:
             return MatchStatus.LIVE
@@ -106,8 +160,8 @@ class SampleProvider(MatchProvider):
         kickoff = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(hours=2)
         return Match(
             competition="FIFA World Cup",
-            home_team=Team("Team A", "TMA"),
-            away_team=Team("Team B", "TMB"),
+            home_team=Team("Team A", "TMA", record=TeamRecord(1, 0, 0, 3)),
+            away_team=Team("Team B", "TMB", record=TeamRecord(0, 1, 0, 1)),
             kickoff=kickoff,
             status=MatchStatus.SCHEDULED,
             venue="Configure FOOTBALL_DATA_TOKEN for live data",

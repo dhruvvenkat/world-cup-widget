@@ -15,10 +15,24 @@ class MatchStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class TeamRecord:
+    wins: int = 0
+    draws: int = 0
+    losses: int = 0
+    points: int | None = None
+
+    @property
+    def display_text(self) -> str:
+        suffix = f" • {self.points} pts" if self.points is not None else ""
+        return f"{self.wins}-{self.draws}-{self.losses}{suffix}"
+
+
+@dataclass(frozen=True)
 class Team:
     name: str
     short_name: str | None = None
     crest_url: str | None = None
+    record: TeamRecord | None = None
 
     @property
     def display_name(self) -> str:
@@ -31,6 +45,10 @@ class Team:
     @property
     def display_name_with_flag(self) -> str:
         return f"{self.flag} {self.display_name}" if self.flag else self.display_name
+
+    @property
+    def record_text(self) -> str:
+        return self.record.display_text if self.record else "Record unavailable"
 
 
 @dataclass(frozen=True)

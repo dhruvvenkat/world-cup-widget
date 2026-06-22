@@ -21,11 +21,17 @@ def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
 
 
 class FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
     status_code = 200
     text = "ok"
 
     def json(self):
-        return {
+        return self._payload
+
+
+MATCHES_PAYLOAD = {
             "matches": [
                 {
                     "competition": {"name": "FIFA World Cup"},
@@ -40,6 +46,17 @@ class FakeResponse:
             ]
         }
 
+STANDINGS_PAYLOAD = {
+    "standings": [
+        {
+            "table": [
+                {"team": {"name": "France", "tla": "FRA"}, "won": 2, "draw": 1, "lost": 0, "points": 7},
+                {"team": {"name": "Brazil", "tla": "BRA"}, "won": 1, "draw": 1, "lost": 1, "points": 4},
+            ]
+        }
+    ]
+}
+
 
 class FakeSession:
     def __init__(self):
@@ -48,7 +65,9 @@ class FakeSession:
 
     def get(self, url, params, timeout):
         self.params = params
-        return FakeResponse()
+        if url.endswith("/standings"):
+            return FakeResponse(STANDINGS_PAYLOAD)
+        return FakeResponse(MATCHES_PAYLOAD)
 
 
 def test_sample_provider_returns_config_hint():
@@ -67,6 +86,8 @@ def test_football_data_provider_parses_match():
     assert match.status is MatchStatus.LIVE
     assert match.home_team.display_name == "FRA"
     assert match.away_team.display_name == "BRA"
+    assert match.home_team.record_text == "2-1-0 • 7 pts"
+    assert match.away_team.record_text == "1-1-1 • 4 pts"
     assert match.score_text == "1 - 0"
     assert match.kickoff == datetime(2026, 6, 22, 19, tzinfo=timezone.utc)
     assert session.headers["X-Auth-Token"] == "token"

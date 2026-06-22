@@ -5,7 +5,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QCursor, QFont
-from PySide6.QtWidgets import QApplication, QLabel, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from .models import Match, MatchStatus
 from .provider import FallbackProvider
@@ -44,10 +44,16 @@ class WorldCupWidget(QWidget):
         self.title.setFont(QFont("Inter", 13, QFont.Bold))
         self.status = QLabel("Loading match...")
         self.status.setObjectName("status")
-        self.teams = QLabel("-")
-        self.teams.setFont(QFont("Inter", 18, QFont.Bold))
+        self.home_team = QLabel("-")
+        self.home_team.setFont(QFont("Inter", 18, QFont.Bold))
+        self.home_record = QLabel("-")
+        self.home_record.setObjectName("record")
         self.score = QLabel("vs")
         self.score.setFont(QFont("Inter", 28, QFont.Bold))
+        self.away_team = QLabel("-")
+        self.away_team.setFont(QFont("Inter", 18, QFont.Bold))
+        self.away_record = QLabel("-")
+        self.away_record.setObjectName("record")
         self.detail = QLabel("")
         self.detail.setWordWrap(True)
         self.updated = QLabel("")
@@ -56,9 +62,21 @@ class WorldCupWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 18, 22, 18)
         layout.setSpacing(7)
-        for label in [self.title, self.status, self.teams, self.score, self.detail, self.updated]:
+        for label in [self.title, self.status, self.detail, self.updated]:
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label)
+
+        match_grid = QGridLayout()
+        match_grid.setHorizontalSpacing(14)
+        match_grid.setVerticalSpacing(2)
+        for label in [self.home_team, self.home_record, self.score, self.away_team, self.away_record]:
+            label.setAlignment(Qt.AlignCenter)
+        match_grid.addWidget(self.home_team, 0, 0)
+        match_grid.addWidget(self.score, 0, 1, 2, 1)
+        match_grid.addWidget(self.away_team, 0, 2)
+        match_grid.addWidget(self.home_record, 1, 0)
+        match_grid.addWidget(self.away_record, 1, 2)
+        layout.insertLayout(2, match_grid)
 
         self.setStyleSheet("""
             QWidget {
@@ -68,6 +86,7 @@ class WorldCupWidget(QWidget):
             }
             QLabel { background: transparent; }
             QLabel#status { color: #38bdf8; font-weight: 700; }
+            QLabel#record { color: #cbd5e1; font-size: 12px; }
             QLabel#updated { color: #94a3b8; font-size: 11px; }
         """)
 
@@ -95,7 +114,10 @@ class WorldCupWidget(QWidget):
             return
         if not match:
             self.status.setText("No World Cup match found")
-            self.teams.setText("Check configuration")
+            self.home_team.setText("Check")
+            self.away_team.setText("configuration")
+            self.home_record.setText("-")
+            self.away_record.setText("-")
             self.score.setText("-")
             self.detail.setText(error)
             return
@@ -106,8 +128,11 @@ class WorldCupWidget(QWidget):
             self.status.setStyleSheet("color: #ef4444;")
         else:
             self.status.setStyleSheet("")
-        self.teams.setText(f"{match.home_team.display_name_with_flag}  •  {match.away_team.display_name_with_flag}")
+        self.home_team.setText(match.home_team.display_name_with_flag)
+        self.home_record.setText(match.home_team.record_text)
         self.score.setText(match.score_text)
+        self.away_team.setText(match.away_team.display_name_with_flag)
+        self.away_record.setText(match.away_team.record_text)
         details = [part for part in [match.stage, match.venue, match.kickoff_text, f"Source: {match.source}"] if part]
         if error:
             details.append(f"Fallback active: {error}")
