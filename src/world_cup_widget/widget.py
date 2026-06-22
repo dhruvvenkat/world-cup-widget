@@ -45,6 +45,7 @@ class WorldCupWidget(QWidget):
         self.setWindowTitle("World Cup Widget")
         self.setWindowFlags(self._overlay_flags())
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setMinimumWidth(340)
 
         self.title = QLabel("World Cup")
@@ -127,11 +128,10 @@ class WorldCupWidget(QWidget):
             self.setWindowFlags(self.windowFlags() | required_flags)
             self.show()
         self.raise_()
-        self.activateWindow()
         self._reinforce_x11_above_state()
 
     def _overlay_flags(self) -> Qt.WindowType:
-        return Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        return Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
 
     def _reinforce_x11_above_state(self) -> None:
         if not os.getenv("DISPLAY") or not shutil.which("wmctrl"):

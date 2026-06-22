@@ -57,7 +57,7 @@ class TrayIndicator:
         else:
             self.widget.show()
             self.widget.raise_()
-            self.widget.activateWindow()
+            self.widget.reinforce_always_on_top()
             self.toggle_action.setText("Hide widget")
 
     def _activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
