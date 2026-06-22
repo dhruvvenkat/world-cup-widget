@@ -340,6 +340,8 @@ class WorldCupWidget(QWidget):
         for row in rows:
             label = QLabel(row)
             label.setWordWrap(False)
+            label.setAlignment(Qt.AlignCenter)
+            label.setMinimumHeight(24)
             self.upcoming_dropdown_layout.addWidget(label)
 
     def render_match(self, match: Match | None, error: str = "") -> None:
