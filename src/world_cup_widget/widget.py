@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QAction, QCursor, QFont
+from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath
 from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from .models import Match, MatchStatus
@@ -80,7 +80,7 @@ class WorldCupWidget(QWidget):
 
         self.setStyleSheet("""
             QWidget {
-                background-color: rgba(2, 6, 23, 190);
+                background: transparent;
                 color: #f8fafc;
                 border-radius: 22px;
             }
@@ -166,6 +166,14 @@ class WorldCupWidget(QWidget):
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         self.shutdown()
         event.accept()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(self.rect().adjusted(0, 0, -1, -1), 22, 22)
+        painter.fillPath(path, QColor(2, 6, 23, 205))
+        super().paintEvent(event)
 
     def fast_exit(self, exit_code: int = 0) -> None:
         """Exit immediately for development interrupts.
