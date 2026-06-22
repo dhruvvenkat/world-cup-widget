@@ -170,6 +170,122 @@ class FootballDataProvider(MatchProvider):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+class EspnScoreboardProvider(MatchProvider):
+    BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+
+    def __init__(self, session: requests.Session | None = None, league: str = "fifa.world") -> None:
+        self.session = session or requests.Session()
+        self.league = league
+
+    def current_match(self) -> Match | None:
+        response = self.session.get(f"{self.BASE_URL}/{self.league}/scoreboard", params={"limit": 100}, timeout=(2, 3))
+        if response.status_code >= 400:
+            raise MatchProviderError(f"ESPN scoreboard request failed: {response.status_code}")
+        matches = [self._parse_event(event) for event in response.json().get("events", [])]
+        matches = [match for match in matches if match]
+        if not matches:
+            return None
+        return sorted(matches, key=lambda match: match.sort_key)[0]
+
+    def _parse_event(self, event: dict[str, Any]) -> Match | None:
+        competition = (event.get("competitions") or [{}])[0]
+        competitors = competition.get("competitors") or []
+        home = next((item for item in competitors if item.get("homeAway") == "home"), None)
+        away = next((item for item in competitors if item.get("homeAway") == "away"), None)
+        if not home or not away:
+            return None
+        status = self._parse_status(competition.get("status") or event.get("status") or {})
+        return Match(
+            competition=(event.get("league") or {}).get("name") or "FIFA World Cup",
+            home_team=self._parse_team(home),
+            away_team=self._parse_team(away),
+            kickoff=self._parse_datetime(event.get("date")),
+            status=status,
+            home_score=self._parse_score(home.get("score")),
+            away_score=self._parse_score(away.get("score")),
+            minute=self._parse_minute(competition.get("status") or event.get("status") or {}),
+            venue=(competition.get("venue") or {}).get("fullName"),
+            stage=event.get("season", {}).get("slug"),
+            source="espn",
+        )
+
+    def _parse_team(self, item: dict[str, Any]) -> Team:
+        team = item.get("team") or {}
+        return Team(
+            name=team.get("displayName") or team.get("name") or "TBD",
+            short_name=team.get("abbreviation"),
+            record=self._parse_record(item.get("records") or []),
+        )
+
+    def _parse_record(self, records: list[dict[str, Any]]) -> TeamRecord | None:
+        summary = next((record.get("summary") for record in records if record.get("summary")), None)
+        if not summary:
+            return None
+        try:
+            wins, draws, losses = [int(part) for part in summary.split("-", 2)]
+        except ValueError:
+            return None
+        return TeamRecord(wins, draws, losses)
+
+    def _parse_status(self, status: dict[str, Any]) -> MatchStatus:
+        status_type = status.get("type") or {}
+        name = status_type.get("name") or ""
+        state = status_type.get("state") or ""
+        if state == "in" or "IN_PROGRESS" in name or "FIRST_HALF" in name or "SECOND_HALF" in name:
+            return MatchStatus.LIVE
+        if state == "post" or "FULL_TIME" in name:
+            return MatchStatus.FINISHED
+        if state == "pre":
+            return MatchStatus.SCHEDULED
+        return MatchStatus.UNKNOWN
+
+    def _parse_minute(self, status: dict[str, Any]) -> int | None:
+        display = (status.get("type") or {}).get("shortDetail") or status.get("displayClock") or ""
+        digits = "".join(char for char in display if char.isdigit())
+        return int(digits) if digits else None
+
+    def _parse_score(self, value: str | int | None) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _parse_datetime(self, value: str | None) -> datetime | None:
+        if not value:
+            return None
+        normalized = value.replace("Z", "+00:00")
+        if normalized.endswith("+00:00") and len(normalized) == 22:
+            normalized = normalized.replace("+00:00", ":00+00:00")
+        return datetime.fromisoformat(normalized)
+
+    def close(self) -> None:
+        self.session.close()
+
+
+class CompositeProvider(MatchProvider):
+    def __init__(self, providers: list[MatchProvider]) -> None:
+        self.providers = providers
+
+    def current_match(self) -> Match | None:
+        errors: list[str] = []
+        for provider in self.providers:
+            try:
+                match = provider.current_match()
+                if match:
+                    return match
+            except Exception as exc:
+                errors.append(str(exc))
+        if errors:
+            raise MatchProviderError("; ".join(errors))
+        return None
+
+    def close(self) -> None:
+        for provider in self.providers:
+            provider.close()
+
+
 class SampleProvider(MatchProvider):
     """Offline fallback used until a live provider is configured."""
 
@@ -215,7 +331,8 @@ class FallbackProvider(MatchProvider):
 
 
 def build_provider(settings: Settings) -> FallbackProvider:
-    primary: MatchProvider | None = None
+    providers: list[MatchProvider] = [EspnScoreboardProvider()]
     if settings.football_data_token:
-        primary = FootballDataProvider(settings)
+        providers.append(FootballDataProvider(settings))
+    primary: MatchProvider | None = CompositeProvider(providers) if providers else None
     return FallbackProvider(primary=primary, fallback=SampleProvider())

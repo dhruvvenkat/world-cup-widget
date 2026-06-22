@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from world_cup_widget.config import Settings
 from world_cup_widget.models import MatchStatus
 from world_cup_widget.models import Match, Team
-from world_cup_widget.provider import FallbackProvider, FootballDataProvider, MatchProvider, SampleProvider, build_provider
+from world_cup_widget.provider import EspnScoreboardProvider, FallbackProvider, FootballDataProvider, MatchProvider, SampleProvider, build_provider
 
 
 def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
@@ -60,6 +60,23 @@ STANDINGS_PAYLOAD = {
     ]
 }
 
+ESPN_PAYLOAD = {
+    "events": [
+        {
+            "date": "2026-06-22T01:00Z",
+            "competitions": [
+                {
+                    "status": {"type": {"state": "in", "name": "STATUS_FIRST_HALF", "shortDetail": "17'"}},
+                    "competitors": [
+                        {"homeAway": "home", "score": "1", "team": {"displayName": "New Zealand", "abbreviation": "NZL"}, "records": [{"summary": "0-1-0"}]},
+                        {"homeAway": "away", "score": "0", "team": {"displayName": "Egypt", "abbreviation": "EGY"}, "records": [{"summary": "0-1-0"}]},
+                    ],
+                }
+            ],
+        }
+    ]
+}
+
 
 class FakeSession:
     def __init__(self):
@@ -71,6 +88,11 @@ class FakeSession:
         if url.endswith("/standings"):
             return FakeResponse(STANDINGS_PAYLOAD)
         return FakeResponse(MATCHES_PAYLOAD)
+
+
+class FakeEspnSession:
+    def get(self, url, params, timeout):
+        return FakeResponse(ESPN_PAYLOAD)
 
 
 class ErrorProvider(MatchProvider):
@@ -110,10 +132,21 @@ def test_football_data_provider_infers_live_when_status_lags_after_kickoff():
     assert status is MatchStatus.LIVE
 
 
+def test_espn_scoreboard_provider_parses_live_score():
+    match = EspnScoreboardProvider(session=FakeEspnSession()).current_match()
+
+    assert match is not None
+    assert match.status is MatchStatus.LIVE
+    assert match.home_team.display_name == "NZL"
+    assert match.away_team.display_name == "EGY"
+    assert match.score_text == "1 - 0"
+    assert match.status_text == "LIVE 17'"
+    assert match.source == "espn"
+
+
 def test_build_provider_without_token_uses_fallback():
     provider = build_provider(Settings(football_data_token=None))
-    assert provider.primary is None
-    assert provider.current_match().source == "sample"
+    assert provider.primary is not None
 
 
 def test_fallback_provider_keeps_last_primary_match_on_transient_error():
