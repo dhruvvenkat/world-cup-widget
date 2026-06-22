@@ -144,6 +144,14 @@ def test_espn_scoreboard_provider_parses_live_score():
     assert match.source == "espn"
 
 
+def test_espn_scoreboard_provider_parses_halftime_as_paused():
+    provider = EspnScoreboardProvider(session=FakeEspnSession())
+
+    status = provider._parse_status({"type": {"state": "in", "name": "STATUS_HALFTIME", "shortDetail": "HT"}})
+
+    assert status is MatchStatus.PAUSED
+
+
 def test_build_provider_without_token_uses_fallback():
     provider = build_provider(Settings(football_data_token=None))
     assert provider.primary is not None

@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath
+from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from .models import Match, MatchStatus
@@ -23,6 +23,44 @@ class MatchFetchWorker(QThread):
     def run(self) -> None:
         match = self.provider.current_match()
         self.fetched.emit(match, self.provider.last_error or "")
+
+
+class LiveUnderline(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.offset = 0
+        self.setFixedHeight(5)
+        self.setVisible(False)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+
+    def set_active(self, active: bool) -> None:
+        self.setVisible(active)
+        if active and not self.timer.isActive():
+            self.timer.start(28)
+        elif not active:
+            self.timer.stop()
+            self.offset = 0
+            self.update()
+
+    def tick(self) -> None:
+        self.offset = (self.offset + 4) % max(self.width(), 1)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if not self.isVisible():
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor(239, 68, 68), 3)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        width = max(self.width(), 1)
+        segment = max(width // 3, 48)
+        x = width - self.offset
+        painter.drawLine(x, 2, x - segment, 2)
+        if x - segment < 0:
+            painter.drawLine(width + x, 2, width + x - segment, 2)
 
 
 class WorldCupWidget(QWidget):
@@ -52,6 +90,7 @@ class WorldCupWidget(QWidget):
         self.title.setFont(QFont("Inter", 13, QFont.Bold))
         self.status = QLabel("Loading match...")
         self.status.setObjectName("status")
+        self.live_underline = LiveUnderline()
         self.home_team = QLabel("-")
         self.home_team.setFont(QFont("Inter", 18, QFont.Bold))
         self.home_record = QLabel("-")
@@ -73,6 +112,8 @@ class WorldCupWidget(QWidget):
         for label in [self.title, self.status, self.detail, self.updated]:
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label)
+            if label is self.status:
+                layout.addWidget(self.live_underline)
 
         match_grid = QGridLayout()
         match_grid.setHorizontalSpacing(14)
@@ -166,6 +207,7 @@ class WorldCupWidget(QWidget):
         if self._closing:
             return
         if not match:
+            self.live_underline.set_active(False)
             self.current_match = None
             self.status.setText("No World Cup match found")
             self.home_team.setText("Check")
@@ -181,9 +223,11 @@ class WorldCupWidget(QWidget):
         self.update_live_display()
         if match.status is MatchStatus.LIVE:
             self.status.setStyleSheet("color: #ef4444;")
+            self.live_underline.set_active(True)
             self.timer.setInterval(self.live_refresh_ms)
         else:
             self.status.setStyleSheet("")
+            self.live_underline.set_active(False)
             self.timer.setInterval(self.normal_refresh_ms)
         self.home_team.setText(match.home_team.display_name_with_flag)
         self.home_record.setText(match.home_team.record_text)
@@ -222,6 +266,7 @@ class WorldCupWidget(QWidget):
         self.timer.stop()
         self.display_timer.stop()
         self.on_top_timer.stop()
+        self.live_underline.set_active(False)
         self.provider.close()
         if self.worker and self._worker_is_running():
             try:
@@ -264,6 +309,7 @@ class WorldCupWidget(QWidget):
         self.timer.stop()
         self.display_timer.stop()
         self.on_top_timer.stop()
+        self.live_underline.set_active(False)
         try:
             self.provider.close()
         except Exception:

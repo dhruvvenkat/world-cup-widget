@@ -31,7 +31,7 @@ class FootballDataProvider(MatchProvider):
     """
 
     BASE_URL = "https://api.football-data.org/v4"
-    LIVE_STATUSES = {"IN_PLAY", "PAUSED"}
+    LIVE_STATUSES = {"IN_PLAY"}
     SCHEDULED_STATUSES = {"SCHEDULED", "TIMED"}
 
     def __init__(self, settings: Settings, session: requests.Session | None = None) -> None:
@@ -149,6 +149,8 @@ class FootballDataProvider(MatchProvider):
     def _parse_status(self, status: str | None, kickoff: datetime | None = None) -> MatchStatus:
         if status in self.LIVE_STATUSES:
             return MatchStatus.LIVE
+        if status == "PAUSED":
+            return MatchStatus.PAUSED
         if status in self.SCHEDULED_STATUSES and self._kickoff_is_current(kickoff):
             return MatchStatus.LIVE
         if status in self.SCHEDULED_STATUSES:
@@ -231,6 +233,8 @@ class EspnScoreboardProvider(MatchProvider):
         status_type = status.get("type") or {}
         name = status_type.get("name") or ""
         state = status_type.get("state") or ""
+        if "HALFTIME" in name or "HALF_TIME" in name:
+            return MatchStatus.PAUSED
         if state == "in" or "IN_PROGRESS" in name or "FIRST_HALF" in name or "SECOND_HALF" in name:
             return MatchStatus.LIVE
         if state == "post" or "FULL_TIME" in name:

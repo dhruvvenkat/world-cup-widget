@@ -10,6 +10,7 @@ from .flags import flag_for_code
 class MatchStatus(str, Enum):
     SCHEDULED = "scheduled"
     LIVE = "live"
+    PAUSED = "paused"
     FINISHED = "finished"
     UNKNOWN = "unknown"
 
@@ -68,7 +69,7 @@ class Match:
     @property
     def score_text(self) -> str:
         if self.home_score is None or self.away_score is None:
-            if self.status is MatchStatus.LIVE:
+            if self.status in {MatchStatus.LIVE, MatchStatus.PAUSED}:
                 return "0 - 0"
             return "vs"
         return f"{self.home_score} - {self.away_score}"
@@ -85,6 +86,8 @@ class Match:
         if self.status is MatchStatus.LIVE:
             minute = self.live_minute
             return f"LIVE {minute}'" if minute else "LIVE"
+        if self.status is MatchStatus.PAUSED:
+            return "Halftime"
         if self.status is MatchStatus.SCHEDULED:
             return f"Kickoff {self.kickoff_text}"
         if self.status is MatchStatus.FINISHED:
@@ -105,6 +108,7 @@ class Match:
     def sort_key(self) -> tuple[int, float]:
         priority = {
             MatchStatus.LIVE: 0,
+            MatchStatus.PAUSED: 0,
             MatchStatus.SCHEDULED: 1,
             MatchStatus.FINISHED: 2,
             MatchStatus.UNKNOWN: 3,
