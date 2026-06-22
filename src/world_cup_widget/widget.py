@@ -41,7 +41,12 @@ class WorldCupWidget(QWidget):
             app.aboutToQuit.connect(self.shutdown)
 
         self.setWindowTitle("World Cup Widget")
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.WindowStaysOnTopHint
+            | Qt.WindowMinimizeButtonHint
+            | Qt.WindowCloseButtonHint
+        )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setMinimumWidth(340)
 

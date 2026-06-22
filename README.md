@@ -4,7 +4,7 @@ A native Python desktop widget that shows the current FIFA World Cup match. It u
 
 ## Features
 
-- Frameless always-on-top desktop widget
+- Native always-on-top desktop widget with minimize/close controls
 - Drag to reposition
 - Right-click menu with refresh and quit
 - Polls for live or upcoming match data
