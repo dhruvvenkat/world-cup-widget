@@ -107,7 +107,28 @@ class WorldCupWidget(QWidget):
         self.display_timer = QTimer(self)
         self.display_timer.timeout.connect(self.update_live_display)
         self.display_timer.start(1000)
+
+        self.on_top_timer = QTimer(self)
+        self.on_top_timer.timeout.connect(self.reinforce_always_on_top)
+        self.on_top_timer.start(2000)
         self.refresh()
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().showEvent(event)
+        QTimer.singleShot(0, self.reinforce_always_on_top)
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().changeEvent(event)
+        if self.isVisible() and not self.isMinimized():
+            QTimer.singleShot(0, self.reinforce_always_on_top)
+
+    def reinforce_always_on_top(self) -> None:
+        if self._closing or not self.isVisible() or self.isMinimized():
+            return
+        if not self.windowFlags() & Qt.WindowStaysOnTopHint:
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+            self.show()
+        self.raise_()
 
     def refresh(self) -> None:
         if self._closing:
@@ -182,6 +203,7 @@ class WorldCupWidget(QWidget):
         self._closing = True
         self.timer.stop()
         self.display_timer.stop()
+        self.on_top_timer.stop()
         self.provider.close()
         if self.worker and self._worker_is_running():
             try:
@@ -223,6 +245,7 @@ class WorldCupWidget(QWidget):
         self._closing = True
         self.timer.stop()
         self.display_timer.stop()
+        self.on_top_timer.stop()
         try:
             self.provider.close()
         except Exception:

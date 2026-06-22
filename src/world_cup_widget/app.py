@@ -24,6 +24,7 @@ def main() -> int:
     )
     widget.move(80, 80)
     widget.show()
+    QTimer.singleShot(0, widget.reinforce_always_on_top)
     tray = TrayIndicator(widget)
     tray.show()
     app.tray_indicator = tray  # keep alive for the lifetime of QApplication
