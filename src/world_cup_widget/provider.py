@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from .config import Settings
-from .models import Match, MatchStatus, Team, TeamRecord
+from .models import Match, MatchStatus, StandingEntry, Team, TeamRecord
 
 
 class MatchProviderError(RuntimeError):
@@ -41,6 +41,7 @@ class FootballDataProvider(MatchProvider):
         self.session = session or requests.Session()
         self.session.headers.update({"X-Auth-Token": settings.football_data_token})
         self._records_cache: dict[str, TeamRecord] = {}
+        self._group_standings_cache: dict[str, tuple[StandingEntry, ...]] = {}
         self._records_cache_at: datetime | None = None
 
     def current_match(self) -> Match | None:
@@ -48,8 +49,8 @@ class FootballDataProvider(MatchProvider):
         if not matches:
             return None
         match = sorted(matches, key=lambda match: match.sort_key)[0]
-        records = self._fetch_records()
-        return self._with_records(match, records)
+        records, group_standings = self._fetch_standings()
+        return self._with_records(match, records, group_standings)
 
     def _fetch_matches(self) -> list[Match]:
         today = datetime.now(timezone.utc).date()
@@ -68,9 +69,9 @@ class FootballDataProvider(MatchProvider):
         payload = response.json()
         return [self._parse_match(item) for item in payload.get("matches", [])]
 
-    def _fetch_records(self) -> dict[str, TeamRecord]:
+    def _fetch_standings(self) -> tuple[dict[str, TeamRecord], dict[str, tuple[StandingEntry, ...]]]:
         if self._records_cache_at and datetime.now(timezone.utc) - self._records_cache_at < timedelta(minutes=5):
-            return self._records_cache
+            return self._records_cache, getattr(self, "_group_standings_cache", {})
 
         params: dict[str, int] = {}
         if self.settings.season:
@@ -79,10 +80,15 @@ class FootballDataProvider(MatchProvider):
         url = f"{self.BASE_URL}/competitions/{self.settings.competition_code}/standings"
         response = self.session.get(url, params=params, timeout=(2, 3))
         if response.status_code >= 400:
-            return self._records_cache
+            return self._records_cache, getattr(self, "_group_standings_cache", {})
 
         records: dict[str, TeamRecord] = {}
+        group_standings: dict[str, tuple[StandingEntry, ...]] = {}
+        all_entries: list[StandingEntry] = []
         for standing in response.json().get("standings", []):
+            if standing.get("type") not in {None, "TOTAL"}:
+                continue
+            table_entries: list[StandingEntry] = []
             for row in standing.get("table", []):
                 team = row.get("team") or {}
                 record = TeamRecord(
@@ -93,11 +99,57 @@ class FootballDataProvider(MatchProvider):
                 )
                 for key in self._team_keys(team):
                     records[key] = record
+                table_entries.append(StandingEntry(team=self._parse_team(team), record=record, position=row.get("position")))
+            group_name = standing.get("group")
+            if group_name and table_entries:
+                group_standings[group_name] = tuple(table_entries)
+            elif table_entries:
+                all_entries = table_entries
+        if all_entries:
+            group_standings.update(self._derive_group_standings(all_entries))
         self._records_cache = records
+        self._group_standings_cache = group_standings
         self._records_cache_at = datetime.now(timezone.utc)
-        return records
+        return records, group_standings
 
-    def _with_records(self, match: Match, records: dict[str, TeamRecord]) -> Match:
+    def _derive_group_standings(self, all_entries: list[StandingEntry]) -> dict[str, tuple[StandingEntry, ...]]:
+        memberships = self._fetch_group_memberships()
+        by_key: dict[str, StandingEntry] = {}
+        for entry in all_entries:
+            for key in self._team_keys({"name": entry.team.name, "tla": entry.team.short_name, "shortName": entry.team.short_name}):
+                by_key[key] = entry
+
+        result: dict[str, tuple[StandingEntry, ...]] = {}
+        for group, member_keys in memberships.items():
+            entries: list[StandingEntry] = []
+            seen: set[str] = set()
+            for entry in all_entries:
+                keys = self._team_keys({"name": entry.team.name, "tla": entry.team.short_name, "shortName": entry.team.short_name})
+                if keys & member_keys and entry.team.display_name not in seen:
+                    seen.add(entry.team.display_name)
+                    entries.append(StandingEntry(entry.team, entry.record, len(entries) + 1))
+            if entries:
+                result[group] = tuple(entries)
+        return result
+
+    def _fetch_group_memberships(self) -> dict[str, set[str]]:
+        params: dict[str, int] = {}
+        if self.settings.season:
+            params["season"] = self.settings.season
+        url = f"{self.BASE_URL}/competitions/{self.settings.competition_code}/matches"
+        response = self.session.get(url, params=params, timeout=(2, 3))
+        if response.status_code >= 400:
+            return {}
+        memberships: dict[str, set[str]] = {}
+        for item in response.json().get("matches", []):
+            group = item.get("group")
+            if not group:
+                continue
+            memberships.setdefault(group, set()).update(self._team_keys(item.get("homeTeam") or {}))
+            memberships.setdefault(group, set()).update(self._team_keys(item.get("awayTeam") or {}))
+        return memberships
+
+    def _with_records(self, match: Match, records: dict[str, TeamRecord], group_standings: dict[str, tuple[StandingEntry, ...]]) -> Match:
         return Match(
             competition=match.competition,
             home_team=self._team_with_record(match.home_team, records),
@@ -110,6 +162,7 @@ class FootballDataProvider(MatchProvider):
             venue=match.venue,
             stage=match.stage,
             group=match.group,
+            group_standings=group_standings.get(match.group or "", ()),
             source=match.source,
         )
 
@@ -310,6 +363,7 @@ class CompositeProvider(MatchProvider):
             venue=primary.venue or secondary.venue,
             stage=primary.stage or secondary.stage,
             group=primary.group or secondary.group,
+            group_standings=primary.group_standings or secondary.group_standings,
             source=primary.source,
         )
 

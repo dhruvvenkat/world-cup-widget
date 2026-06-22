@@ -7,7 +7,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from .models import Match, MatchStatus
 from .provider import FallbackProvider
@@ -65,6 +65,52 @@ class LiveUnderline(QWidget):
             painter.drawLine(width + x, 2, width + x - segment, 2)
 
 
+class HoverLabel(QLabel):
+    hovered = Signal(bool)
+
+    def enterEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self.hovered.emit(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self.hovered.emit(False)
+        super().leaveEvent(event)
+
+
+class StandingsPopup(QFrame):
+    def __init__(self) -> None:
+        super().__init__(None, Qt.ToolTip | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(14, 10, 14, 10)
+        self.layout.setSpacing(4)
+        self.setStyleSheet('''
+            QFrame {
+                background-color: rgba(2, 6, 23, 235);
+                border: 1px solid rgba(248, 113, 113, 190);
+                border-radius: 12px;
+                color: #f8fafc;
+                font-family: "Comic Sans MS", "Comic Neue", "Comic Relief", cursive;
+            }
+            QLabel { background: transparent; }
+        ''')
+
+    def set_match(self, match: Match) -> None:
+        while self.layout.count():
+            item = self.layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        title = QLabel(match.group_label or "Group")
+        title.setFont(QFont(COMIC_FONT, 12, QFont.Bold))
+        self.layout.addWidget(title)
+        if not match.group_standings:
+            self.layout.addWidget(QLabel("Standings unavailable"))
+            return
+        for entry in match.group_standings:
+            prefix = f"{entry.position}. " if entry.position else ""
+            self.layout.addWidget(QLabel(f"{prefix}{entry.team.display_name_with_flag}  {entry.record.display_text}"))
+
+
 class WorldCupWidget(QWidget):
     match_updated = Signal(object)
 
@@ -105,13 +151,18 @@ class WorldCupWidget(QWidget):
         self.away_record.setObjectName("record")
         self.detail = QLabel("")
         self.detail.setWordWrap(True)
+        self.group_detail = HoverLabel("")
+        self.group_detail.setObjectName("groupDetail")
+        self.group_detail.setVisible(False)
+        self.group_detail.hovered.connect(self.toggle_standings_popup)
+        self.standings_popup = StandingsPopup()
         self.updated = QLabel("")
         self.updated.setObjectName("updated")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 18, 22, 18)
         layout.setSpacing(7)
-        for label in [self.title, self.status, self.detail, self.updated]:
+        for label in [self.title, self.status, self.group_detail, self.detail, self.updated]:
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label)
             if label is self.status:
@@ -139,6 +190,7 @@ class WorldCupWidget(QWidget):
             QLabel { background: transparent; }
             QLabel#status { color: #38bdf8; font-weight: 700; }
             QLabel#record { color: #cbd5e1; font-size: 12px; }
+            QLabel#groupDetail { color: #fca5a5; font-weight: 700; }
             QLabel#updated { color: #94a3b8; font-size: 11px; }
         """)
 
@@ -219,6 +271,7 @@ class WorldCupWidget(QWidget):
             self.away_record.setText("-")
             self.score.setText("-")
             self.detail.setText(error)
+            self.group_detail.hide()
             return
 
         self.current_match = match
@@ -237,7 +290,9 @@ class WorldCupWidget(QWidget):
         self.score.setText(match.score_text)
         self.away_team.setText(match.away_team.display_name_with_flag)
         self.away_record.setText(match.away_team.record_text)
-        details = [part for part in [match.group_label, match.venue, match.kickoff_text] if part]
+        self.group_detail.setText(match.group_label or "")
+        self.group_detail.setVisible(bool(match.group_label))
+        details = [part for part in [match.venue, match.kickoff_text] if part]
         if error:
             details.append(f"Fallback active: {error}")
         self.detail.setText("\n".join(details))
@@ -252,7 +307,6 @@ class WorldCupWidget(QWidget):
             self.detail.setText("\n".join(
                 part
                 for part in [
-                    self.current_match.group_label,
                     self.current_match.venue,
                     self.current_match.kickoff_text,
                 ]
@@ -260,6 +314,15 @@ class WorldCupWidget(QWidget):
             ))
         if self.current_match.status is MatchStatus.LIVE:
             self.match_updated.emit(self.current_match)
+
+    def toggle_standings_popup(self, show: bool) -> None:
+        if not show or not self.current_match or not self.current_match.group_label:
+            self.standings_popup.hide()
+            return
+        self.standings_popup.set_match(self.current_match)
+        top_right = self.mapToGlobal(self.rect().topRight())
+        self.standings_popup.move(top_right.x() + 10, top_right.y())
+        self.standings_popup.show()
 
     def shutdown(self) -> None:
         if self._closing:
@@ -269,6 +332,7 @@ class WorldCupWidget(QWidget):
         self.display_timer.stop()
         self.on_top_timer.stop()
         self.live_underline.set_active(False)
+        self.standings_popup.hide()
         self.provider.close()
         if self.worker and self._worker_is_running():
             try:
@@ -312,6 +376,7 @@ class WorldCupWidget(QWidget):
         self.display_timer.stop()
         self.on_top_timer.stop()
         self.live_underline.set_active(False)
+        self.standings_popup.hide()
         try:
             self.provider.close()
         except Exception:

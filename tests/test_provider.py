@@ -53,9 +53,10 @@ MATCHES_PAYLOAD = {
 STANDINGS_PAYLOAD = {
     "standings": [
         {
+            "group": "GROUP_G",
             "table": [
-                {"team": {"name": "France", "tla": "FRA"}, "won": 2, "draw": 1, "lost": 0, "points": 7},
-                {"team": {"name": "Brazil", "tla": "BRA"}, "won": 1, "draw": 1, "lost": 1, "points": 4},
+                {"position": 1, "team": {"name": "France", "tla": "FRA"}, "won": 2, "draw": 1, "lost": 0, "points": 7},
+                {"position": 2, "team": {"name": "Brazil", "tla": "BRA"}, "won": 1, "draw": 1, "lost": 1, "points": 4},
             ]
         }
     ]
@@ -120,6 +121,8 @@ def test_football_data_provider_parses_match():
     assert match.home_team.record_text == "2-1-0 • 7 pts"
     assert match.away_team.record_text == "1-1-1 • 4 pts"
     assert match.group_label == "Group G"
+    assert len(match.group_standings) == 2
+    assert match.group_standings[0].position == 1
     assert match.score_text == "1 - 0"
     assert match.kickoff == datetime(2026, 6, 22, 19, tzinfo=timezone.utc)
     assert session.headers["X-Auth-Token"] == "token"

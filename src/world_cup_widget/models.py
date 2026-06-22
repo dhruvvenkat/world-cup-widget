@@ -29,6 +29,13 @@ class TeamRecord:
 
 
 @dataclass(frozen=True)
+class StandingEntry:
+    team: Team
+    record: TeamRecord
+    position: int | None = None
+
+
+@dataclass(frozen=True)
 class Team:
     name: str
     short_name: str | None = None
@@ -65,6 +72,7 @@ class Match:
     venue: str | None = None
     stage: str | None = None
     group: str | None = None
+    group_standings: tuple[StandingEntry, ...] = ()
     source: str = "unknown"
 
     @property
