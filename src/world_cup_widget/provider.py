@@ -109,6 +109,7 @@ class FootballDataProvider(MatchProvider):
             minute=match.minute,
             venue=match.venue,
             stage=match.stage,
+            group=match.group,
             source=match.source,
         )
 
@@ -130,6 +131,7 @@ class FootballDataProvider(MatchProvider):
             away_score=score.get("away"),
             venue=item.get("venue"),
             stage=item.get("stage"),
+            group=item.get("group"),
             source="football-data.org",
         )
 
@@ -208,6 +210,7 @@ class EspnScoreboardProvider(MatchProvider):
             minute=self._parse_minute(competition.get("status") or event.get("status") or {}),
             venue=(competition.get("venue") or {}).get("fullName"),
             stage=event.get("season", {}).get("slug"),
+            group=None,
             source="espn",
         )
 
@@ -274,16 +277,46 @@ class CompositeProvider(MatchProvider):
 
     def current_match(self) -> Match | None:
         errors: list[str] = []
+        selected: Match | None = None
         for provider in self.providers:
             try:
                 match = provider.current_match()
-                if match:
-                    return match
+                if not match:
+                    continue
+                if selected is None:
+                    selected = match
+                    continue
+                selected = self._merge_metadata(selected, match)
             except Exception as exc:
                 errors.append(str(exc))
+        if selected:
+            return selected
         if errors:
             raise MatchProviderError("; ".join(errors))
         return None
+
+    def _merge_metadata(self, primary: Match, secondary: Match) -> Match:
+        if not self._same_fixture(primary, secondary):
+            return primary
+        return Match(
+            competition=primary.competition,
+            home_team=primary.home_team,
+            away_team=primary.away_team,
+            kickoff=primary.kickoff or secondary.kickoff,
+            status=primary.status,
+            home_score=primary.home_score,
+            away_score=primary.away_score,
+            minute=primary.minute,
+            venue=primary.venue or secondary.venue,
+            stage=primary.stage or secondary.stage,
+            group=primary.group or secondary.group,
+            source=primary.source,
+        )
+
+    def _same_fixture(self, first: Match, second: Match) -> bool:
+        first_codes = {first.home_team.display_name, first.away_team.display_name}
+        second_codes = {second.home_team.display_name, second.away_team.display_name}
+        return first_codes == second_codes
 
     def close(self) -> None:
         for provider in self.providers:

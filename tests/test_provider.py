@@ -45,6 +45,7 @@ MATCHES_PAYLOAD = {
                     "score": {"fullTime": {"home": 1, "away": 0}},
                     "venue": "MetLife Stadium",
                     "stage": "GROUP_STAGE",
+                    "group": "GROUP_G",
                 }
             ]
         }
@@ -118,6 +119,7 @@ def test_football_data_provider_parses_match():
     assert match.away_team.display_name == "BRA"
     assert match.home_team.record_text == "2-1-0 • 7 pts"
     assert match.away_team.record_text == "1-1-1 • 4 pts"
+    assert match.group_label == "Group G"
     assert match.score_text == "1 - 0"
     assert match.kickoff == datetime(2026, 6, 22, 19, tzinfo=timezone.utc)
     assert session.headers["X-Auth-Token"] == "token"

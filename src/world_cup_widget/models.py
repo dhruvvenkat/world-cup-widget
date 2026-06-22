@@ -64,7 +64,15 @@ class Match:
     minute: int | None = None
     venue: str | None = None
     stage: str | None = None
+    group: str | None = None
     source: str = "unknown"
+
+    @property
+    def group_label(self) -> str | None:
+        if not self.group:
+            return None
+        normalized = self.group.replace("_", " ").title()
+        return normalized.replace("Group ", "Group ", 1)
 
     @property
     def score_text(self) -> str:

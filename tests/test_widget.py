@@ -25,7 +25,16 @@ def get_app():
 
 def test_live_underline_runs_only_during_active_live_play():
     app = get_app()
-    live_match = Match("World Cup", Team("New Zealand", "NZL"), Team("Egypt", "EGY"), datetime.now(timezone.utc), MatchStatus.LIVE, 1, 0)
+    live_match = Match(
+        "World Cup",
+        Team("New Zealand", "NZL"),
+        Team("Egypt", "EGY"),
+        datetime.now(timezone.utc),
+        MatchStatus.LIVE,
+        1,
+        0,
+        group="GROUP_G",
+    )
     widget = WorldCupWidget(StaticProvider(live_match), refresh_seconds=60, live_refresh_seconds=5)
     while widget.worker and widget._worker_is_running():
         app.processEvents()
@@ -33,6 +42,7 @@ def test_live_underline_runs_only_during_active_live_play():
 
     assert not widget.live_underline.isHidden()
     assert widget.live_underline.timer.isActive()
+    assert "Group G" in widget.detail.text()
 
     halftime_match = Match("World Cup", Team("New Zealand", "NZL"), Team("Egypt", "EGY"), datetime.now(timezone.utc), MatchStatus.PAUSED, 1, 0)
     widget.render_match(halftime_match)
