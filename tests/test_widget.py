@@ -86,3 +86,28 @@ def test_upcoming_dropdown_renders_single_line_matches():
     assert any("FRA vs" in row for row in rows)
     assert all("\n" not in row for row in rows)
     widget.shutdown()
+
+
+def test_upcoming_dropdown_close_shrinks_widget():
+    app = get_app()
+    match = Match("World Cup", Team("New Zealand", "NZL"), Team("Egypt", "EGY"), datetime.now(timezone.utc), MatchStatus.LIVE, 1, 0)
+    widget = WorldCupWidget(StaticProvider(match), refresh_seconds=60, live_refresh_seconds=5)
+    widget.show()
+    while widget.worker and widget._worker_is_running():
+        app.processEvents()
+    app.processEvents()
+    closed_height = widget.sizeHint().height()
+
+    widget.toggle_upcoming_dropdown()
+    while widget.upcoming_worker and widget.upcoming_worker.isRunning():
+        app.processEvents()
+    app.processEvents()
+    open_height = widget.sizeHint().height()
+
+    widget.toggle_upcoming_dropdown()
+    app.processEvents()
+    reclosed_height = widget.sizeHint().height()
+
+    assert open_height > closed_height
+    assert reclosed_height == closed_height
+    widget.shutdown()

@@ -188,9 +188,12 @@ class WorldCupWidget(QWidget):
         self.upcoming_dropdown_layout = QVBoxLayout(self.upcoming_dropdown)
         self.upcoming_dropdown_layout.setContentsMargins(10, 8, 10, 8)
         self.upcoming_dropdown_layout.setSpacing(3)
+        self.upcoming_dropdown.setMinimumHeight(0)
+        self.upcoming_dropdown.setMaximumHeight(0)
         self.upcoming_dropdown.hide()
 
         layout = QVBoxLayout(self)
+        self.main_layout = layout
         layout.setContentsMargins(22, 18, 22, 18)
         layout.setSpacing(7)
         for label in [self.title, self.status, self.group_detail, self.detail, self.updated]:
@@ -200,7 +203,6 @@ class WorldCupWidget(QWidget):
                 layout.addWidget(self.live_underline)
             if label is self.detail:
                 layout.addWidget(self.upcoming_button)
-                layout.addWidget(self.upcoming_dropdown)
 
         match_grid = QGridLayout()
         match_grid.setHorizontalSpacing(14)
@@ -310,11 +312,20 @@ class WorldCupWidget(QWidget):
     def toggle_upcoming_dropdown(self) -> None:
         if self.upcoming_dropdown.isVisible():
             self.upcoming_dropdown.hide()
+            self.upcoming_dropdown.setMinimumHeight(0)
+            self.upcoming_dropdown.setMaximumHeight(0)
+            self.main_layout.removeWidget(self.upcoming_dropdown)
             self.upcoming_button.setText("Upcoming ▾")
+            self._clear_upcoming_rows()
+            self._resize_to_contents()
             return
+        self.upcoming_dropdown.setMinimumHeight(0)
+        self.upcoming_dropdown.setMaximumHeight(16777215)
+        self.main_layout.insertWidget(self.main_layout.indexOf(self.upcoming_button) + 1, self.upcoming_dropdown)
         self.upcoming_dropdown.show()
         self.upcoming_button.setText("Upcoming ▴")
         self._set_upcoming_rows(["Loading..."])
+        self._resize_to_contents()
         if self.upcoming_worker and self.upcoming_worker.isRunning():
             return
         self.upcoming_worker = UpcomingFetchWorker(self.provider)
@@ -325,24 +336,36 @@ class WorldCupWidget(QWidget):
     def render_upcoming_matches(self, matches: list[Match]) -> None:
         if not matches:
             self._set_upcoming_rows(["No upcoming matches"])
+            self._resize_to_contents()
             return
         self._set_upcoming_rows([self._format_upcoming_match(match) for match in matches[:5]])
+        self._resize_to_contents()
 
     def _format_upcoming_match(self, match: Match) -> str:
         kickoff = match.kickoff.astimezone().strftime("%a %H:%M") if match.kickoff else "TBD"
         return f"{kickoff} · {match.home_team.display_name_with_flag} vs {match.away_team.display_name_with_flag}"
 
     def _set_upcoming_rows(self, rows: list[str]) -> None:
-        while self.upcoming_dropdown_layout.count():
-            item = self.upcoming_dropdown_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        self._clear_upcoming_rows()
         for row in rows:
             label = QLabel(row)
             label.setWordWrap(False)
             label.setAlignment(Qt.AlignCenter)
             label.setMinimumHeight(24)
             self.upcoming_dropdown_layout.addWidget(label)
+
+    def _clear_upcoming_rows(self) -> None:
+        while self.upcoming_dropdown_layout.count():
+            item = self.upcoming_dropdown_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.setParent(None)
+                widget.deleteLater()
+
+    def _resize_to_contents(self) -> None:
+        self.layout().activate()
+        self.adjustSize()
+        self.updateGeometry()
 
     def render_match(self, match: Match | None, error: str = "") -> None:
         if self._closing:
