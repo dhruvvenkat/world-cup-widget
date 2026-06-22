@@ -102,7 +102,7 @@ class WorldCupWidget(QWidget):
             self.status.setStyleSheet("color: #ef4444;")
         else:
             self.status.setStyleSheet("")
-        self.teams.setText(f"{match.home_team.display_name}  •  {match.away_team.display_name}")
+        self.teams.setText(f"{match.home_team.display_name_with_flag}  •  {match.away_team.display_name_with_flag}")
         self.score.setText(match.score_text)
         details = [part for part in [match.stage, match.venue, match.kickoff_text, f"Source: {match.source}"] if part]
         if error:

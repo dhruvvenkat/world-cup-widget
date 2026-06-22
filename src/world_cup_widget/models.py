@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
+from .flags import flag_for_code
+
 
 class MatchStatus(str, Enum):
     SCHEDULED = "scheduled"
@@ -21,6 +23,14 @@ class Team:
     @property
     def display_name(self) -> str:
         return self.short_name or self.name
+
+    @property
+    def flag(self) -> str:
+        return flag_for_code(self.short_name)
+
+    @property
+    def display_name_with_flag(self) -> str:
+        return f"{self.flag} {self.display_name}" if self.flag else self.display_name
 
 
 @dataclass(frozen=True)
