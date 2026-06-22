@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 
 from .config import Settings
 from .provider import build_provider
+from .tray import TrayIndicator
 from .widget import WorldCupWidget
 
 
@@ -19,6 +20,9 @@ def main() -> int:
     widget = WorldCupWidget(build_provider(settings), refresh_seconds=settings.refresh_seconds)
     widget.move(80, 80)
     widget.show()
+    tray = TrayIndicator(widget)
+    tray.show()
+    app.tray_indicator = tray  # keep alive for the lifetime of QApplication
 
     # Qt's event loop can otherwise delay Python signal handling. This no-op
     # timer keeps Ctrl+C responsive while developing from a terminal.

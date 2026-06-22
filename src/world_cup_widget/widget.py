@@ -24,6 +24,8 @@ class MatchFetchWorker(QThread):
 
 
 class WorldCupWidget(QWidget):
+    match_updated = Signal(object)
+
     def __init__(self, provider: FallbackProvider, refresh_seconds: int = 60) -> None:
         super().__init__()
         self.provider = provider
@@ -138,6 +140,7 @@ class WorldCupWidget(QWidget):
             details.append(f"Fallback active: {error}")
         self.detail.setText("\n".join(details))
         self.updated.setText(f"Updated {datetime.now().strftime('%H:%M:%S')}")
+        self.match_updated.emit(match)
 
     def shutdown(self) -> None:
         if self._closing:
