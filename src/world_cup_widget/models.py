@@ -81,12 +81,23 @@ class Match:
     @property
     def status_text(self) -> str:
         if self.status is MatchStatus.LIVE:
-            return f"LIVE {self.minute}'" if self.minute else "LIVE"
+            minute = self.live_minute
+            return f"LIVE {minute}'" if minute else "LIVE"
         if self.status is MatchStatus.SCHEDULED:
             return f"Kickoff {self.kickoff_text}"
         if self.status is MatchStatus.FINISHED:
             return "Full time"
         return "Status unavailable"
+
+    @property
+    def live_minute(self) -> int | None:
+        if self.minute:
+            return self.minute
+        if self.status is not MatchStatus.LIVE or not self.kickoff:
+            return None
+        elapsed = datetime.now(timezone.utc) - self.kickoff.astimezone(timezone.utc)
+        minute = int(elapsed.total_seconds() // 60) + 1
+        return max(1, min(minute, 120))
 
     @property
     def sort_key(self) -> tuple[int, float]:

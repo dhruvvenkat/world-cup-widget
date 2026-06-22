@@ -26,10 +26,13 @@ class MatchFetchWorker(QThread):
 class WorldCupWidget(QWidget):
     match_updated = Signal(object)
 
-    def __init__(self, provider: FallbackProvider, refresh_seconds: int = 60) -> None:
+    def __init__(self, provider: FallbackProvider, refresh_seconds: int = 60, live_refresh_seconds: int = 15) -> None:
         super().__init__()
         self.provider = provider
         self.worker: MatchFetchWorker | None = None
+        self.current_match: Match | None = None
+        self.normal_refresh_ms = max(refresh_seconds, 10) * 1000
+        self.live_refresh_ms = max(live_refresh_seconds, 5) * 1000
         self.drag_position = None
         self._closing = False
 
@@ -94,7 +97,11 @@ class WorldCupWidget(QWidget):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
-        self.timer.start(max(refresh_seconds, 10) * 1000)
+        self.timer.start(self.normal_refresh_ms)
+
+        self.display_timer = QTimer(self)
+        self.display_timer.timeout.connect(self.update_live_display)
+        self.display_timer.start(1000)
         self.refresh()
 
     def refresh(self) -> None:
@@ -115,6 +122,7 @@ class WorldCupWidget(QWidget):
         if self._closing:
             return
         if not match:
+            self.current_match = None
             self.status.setText("No World Cup match found")
             self.home_team.setText("Check")
             self.away_team.setText("configuration")
@@ -124,12 +132,15 @@ class WorldCupWidget(QWidget):
             self.detail.setText(error)
             return
 
+        self.current_match = match
         self.title.setText(match.competition)
-        self.status.setText(match.status_text)
+        self.update_live_display()
         if match.status is MatchStatus.LIVE:
             self.status.setStyleSheet("color: #ef4444;")
+            self.timer.setInterval(self.live_refresh_ms)
         else:
             self.status.setStyleSheet("")
+            self.timer.setInterval(self.normal_refresh_ms)
         self.home_team.setText(match.home_team.display_name_with_flag)
         self.home_record.setText(match.home_team.record_text)
         self.score.setText(match.score_text)
@@ -142,11 +153,30 @@ class WorldCupWidget(QWidget):
         self.updated.setText(f"Updated {datetime.now().strftime('%H:%M:%S')}")
         self.match_updated.emit(match)
 
+    def update_live_display(self) -> None:
+        if not self.current_match or self._closing:
+            return
+        self.status.setText(self.current_match.status_text)
+        if self.current_match.status is MatchStatus.SCHEDULED:
+            self.detail.setText("\n".join(
+                part
+                for part in [
+                    self.current_match.stage,
+                    self.current_match.venue,
+                    self.current_match.kickoff_text,
+                    f"Source: {self.current_match.source}",
+                ]
+                if part
+            ))
+        if self.current_match.status is MatchStatus.LIVE:
+            self.match_updated.emit(self.current_match)
+
     def shutdown(self) -> None:
         if self._closing:
             return
         self._closing = True
         self.timer.stop()
+        self.display_timer.stop()
         self.provider.close()
         if self.worker and self._worker_is_running():
             try:
@@ -187,6 +217,7 @@ class WorldCupWidget(QWidget):
         """
         self._closing = True
         self.timer.stop()
+        self.display_timer.stop()
         try:
             self.provider.close()
         except Exception:

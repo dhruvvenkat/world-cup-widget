@@ -17,7 +17,11 @@ def main() -> int:
     app.setApplicationName("World Cup Widget")
 
     settings = Settings.from_env()
-    widget = WorldCupWidget(build_provider(settings), refresh_seconds=settings.refresh_seconds)
+    widget = WorldCupWidget(
+        build_provider(settings),
+        refresh_seconds=settings.refresh_seconds,
+        live_refresh_seconds=settings.live_refresh_seconds,
+    )
     widget.move(80, 80)
     widget.show()
     tray = TrayIndicator(widget)

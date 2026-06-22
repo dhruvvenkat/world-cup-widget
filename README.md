@@ -32,7 +32,8 @@ Optional `.env` settings:
 ```dotenv
 WORLD_CUP_COMPETITION=WC      # Football-Data competition code
 WORLD_CUP_SEASON=2026         # Optional season filter
-WORLD_CUP_REFRESH_SECONDS=60  # Minimum 10 seconds in the UI
+WORLD_CUP_REFRESH_SECONDS=60       # Normal polling interval
+WORLD_CUP_LIVE_REFRESH_SECONDS=15  # Polling interval while a match is live
 ```
 
 `.env` is ignored by git so your token stays local.

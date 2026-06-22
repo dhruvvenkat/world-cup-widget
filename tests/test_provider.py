@@ -9,8 +9,9 @@ def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("FOOTBALL_DATA_TOKEN", raising=False)
     monkeypatch.delenv("WORLD_CUP_REFRESH_SECONDS", raising=False)
+    monkeypatch.delenv("WORLD_CUP_LIVE_REFRESH_SECONDS", raising=False)
     tmp_path.joinpath(".env").write_text(
-        "FOOTBALL_DATA_TOKEN=dotenv-token\nWORLD_CUP_REFRESH_SECONDS=45\n",
+        "FOOTBALL_DATA_TOKEN=dotenv-token\nWORLD_CUP_REFRESH_SECONDS=45\nWORLD_CUP_LIVE_REFRESH_SECONDS=7\n",
         encoding="utf-8",
     )
 
@@ -18,6 +19,7 @@ def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
 
     assert settings.football_data_token == "dotenv-token"
     assert settings.refresh_seconds == 45
+    assert settings.live_refresh_seconds == 7
 
 
 class FakeResponse:

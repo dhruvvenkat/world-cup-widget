@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
 from world_cup_widget.flags import flag_for_code
-from world_cup_widget.models import Team
+from world_cup_widget.models import Match, MatchStatus, Team
 
 
 def test_flag_for_fifa_code():
@@ -26,3 +28,16 @@ def test_unknown_code_has_no_flag():
 def test_team_display_name_with_flag():
     assert Team("France", "FRA").display_name_with_flag == "🇫🇷 FRA"
     assert Team("To be decided", "TBD").display_name_with_flag == "TBD"
+
+
+def test_live_match_status_uses_elapsed_kickoff_minute():
+    match = Match(
+        competition="World Cup",
+        home_team=Team("France", "FRA"),
+        away_team=Team("Brazil", "BRA"),
+        kickoff=datetime.now(timezone.utc) - timedelta(minutes=24, seconds=5),
+        status=MatchStatus.LIVE,
+    )
+
+    assert match.live_minute in {25, 26}
+    assert match.status_text.startswith("LIVE ")
