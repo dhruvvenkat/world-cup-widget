@@ -19,6 +19,9 @@ class MatchProvider(ABC):
     def current_match(self) -> Match | None:
         """Return the live match, or the next scheduled match if nothing is live."""
 
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        return []
+
     def close(self) -> None:
         """Release provider resources, if any."""
 
@@ -51,6 +54,12 @@ class FootballDataProvider(MatchProvider):
         match = sorted(matches, key=lambda match: match.sort_key)[0]
         records, group_standings = self._fetch_standings()
         return self._with_records(match, records, group_standings)
+
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        records, group_standings = self._fetch_standings()
+        matches = [self._with_records(match, records, group_standings) for match in self._fetch_matches()]
+        upcoming = [match for match in matches if match.status is MatchStatus.SCHEDULED]
+        return sorted(upcoming, key=lambda match: match.sort_key)[:limit]
 
     def _fetch_matches(self) -> list[Match]:
         today = datetime.now(timezone.utc).date()
@@ -244,6 +253,14 @@ class EspnScoreboardProvider(MatchProvider):
             return None
         return sorted(matches, key=lambda match: match.sort_key)[0]
 
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        response = self.session.get(f"{self.BASE_URL}/{self.league}/scoreboard", params={"limit": 100}, timeout=(2, 3))
+        if response.status_code >= 400:
+            raise MatchProviderError(f"ESPN scoreboard request failed: {response.status_code}")
+        matches = [self._parse_event(event) for event in response.json().get("events", [])]
+        upcoming = [match for match in matches if match and match.status is MatchStatus.SCHEDULED]
+        return sorted(upcoming, key=lambda match: match.sort_key)[:limit]
+
     def _parse_event(self, event: dict[str, Any]) -> Match | None:
         competition = (event.get("competitions") or [{}])[0]
         competitors = competition.get("competitors") or []
@@ -348,6 +365,16 @@ class CompositeProvider(MatchProvider):
             raise MatchProviderError("; ".join(errors))
         return None
 
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        for provider in self.providers:
+            try:
+                matches = provider.upcoming_matches(limit)
+                if matches:
+                    return matches[:limit]
+            except Exception:
+                continue
+        return []
+
     def _merge_metadata(self, primary: Match, secondary: Match) -> Match:
         if not self._same_fixture(primary, secondary):
             return primary
@@ -393,6 +420,14 @@ class SampleProvider(MatchProvider):
             source="sample",
         )
 
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        base = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        matches = [
+            Match("FIFA World Cup", Team("Team C", "TMC"), Team("Team D", "TMD"), base + timedelta(hours=3), MatchStatus.SCHEDULED, source="sample"),
+            Match("FIFA World Cup", Team("Team E", "TME"), Team("Team F", "TMF"), base + timedelta(hours=6), MatchStatus.SCHEDULED, source="sample"),
+        ]
+        return matches[:limit]
+
 
 class FallbackProvider(MatchProvider):
     def __init__(self, primary: MatchProvider | None, fallback: MatchProvider) -> None:
@@ -414,6 +449,16 @@ class FallbackProvider(MatchProvider):
                 if self.last_primary_match:
                     return self.last_primary_match
         return self.fallback.current_match()
+
+    def upcoming_matches(self, limit: int = 5) -> list[Match]:
+        if self.primary:
+            try:
+                matches = self.primary.upcoming_matches(limit)
+                if matches:
+                    return matches[:limit]
+            except Exception as exc:
+                self.last_error = str(exc)
+        return self.fallback.upcoming_matches(limit)
 
     def close(self) -> None:
         if self.primary:

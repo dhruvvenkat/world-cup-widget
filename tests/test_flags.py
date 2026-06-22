@@ -7,6 +7,10 @@ from world_cup_widget.models import Match, MatchStatus, Team
 def test_flag_for_fifa_code():
     assert flag_for_code("FRA") == "🇫🇷"
     assert flag_for_code("BRA") == "🇧🇷"
+    assert flag_for_code("ALG") == "🇩🇿"
+    assert flag_for_code("JOR") == "🇯🇴"
+    assert flag_for_code("IRQ") == "🇮🇶"
+    assert flag_for_code("UZB") == "🇺🇿"
     assert flag_for_code("NZL") == "🇳🇿"
 
 

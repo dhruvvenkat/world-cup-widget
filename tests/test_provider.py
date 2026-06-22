@@ -162,6 +162,13 @@ def test_build_provider_without_token_uses_fallback():
     assert provider.primary is not None
 
 
+def test_sample_provider_returns_upcoming_matches():
+    matches = SampleProvider().upcoming_matches(5)
+
+    assert len(matches) == 2
+    assert all(match.status is MatchStatus.SCHEDULED for match in matches)
+
+
 def test_fallback_provider_keeps_last_primary_match_on_transient_error():
     provider = FallbackProvider(ErrorProvider(), SampleProvider())
     provider.last_primary_match = Match(

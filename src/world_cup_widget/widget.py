@@ -7,7 +7,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QCursor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget
 
 from .models import Match, MatchStatus
 from .provider import FallbackProvider
@@ -25,6 +25,17 @@ class MatchFetchWorker(QThread):
     def run(self) -> None:
         match = self.provider.current_match()
         self.fetched.emit(match, self.provider.last_error or "")
+
+
+class UpcomingFetchWorker(QThread):
+    fetched = Signal(object)
+
+    def __init__(self, provider: FallbackProvider) -> None:
+        super().__init__()
+        self.provider = provider
+
+    def run(self) -> None:
+        self.fetched.emit(self.provider.upcoming_matches(5))
 
 
 class LiveUnderline(QWidget):
@@ -128,6 +139,7 @@ class WorldCupWidget(QWidget):
         super().__init__()
         self.provider = provider
         self.worker: MatchFetchWorker | None = None
+        self.upcoming_worker: UpcomingFetchWorker | None = None
         self.current_match: Match | None = None
         self.normal_refresh_ms = max(refresh_seconds, 10) * 1000
         self.live_refresh_ms = max(live_refresh_seconds, 5) * 1000
@@ -168,6 +180,15 @@ class WorldCupWidget(QWidget):
         self.standings_popup = StandingsPopup()
         self.updated = QLabel("")
         self.updated.setObjectName("updated")
+        self.upcoming_button = QPushButton("Upcoming ▾")
+        self.upcoming_button.setObjectName("dropdownButton")
+        self.upcoming_button.clicked.connect(self.toggle_upcoming_dropdown)
+        self.upcoming_dropdown = QFrame(self)
+        self.upcoming_dropdown.setObjectName("dropdown")
+        self.upcoming_dropdown_layout = QVBoxLayout(self.upcoming_dropdown)
+        self.upcoming_dropdown_layout.setContentsMargins(10, 8, 10, 8)
+        self.upcoming_dropdown_layout.setSpacing(3)
+        self.upcoming_dropdown.hide()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 18, 22, 18)
@@ -177,6 +198,9 @@ class WorldCupWidget(QWidget):
             layout.addWidget(label)
             if label is self.status:
                 layout.addWidget(self.live_underline)
+            if label is self.detail:
+                layout.addWidget(self.upcoming_button)
+                layout.addWidget(self.upcoming_dropdown)
 
         match_grid = QGridLayout()
         match_grid.setHorizontalSpacing(14)
@@ -202,6 +226,18 @@ class WorldCupWidget(QWidget):
             QLabel#record { color: #cbd5e1; font-size: 12px; }
             QLabel#groupDetail { color: #fca5a5; font-weight: 700; }
             QLabel#updated { color: #94a3b8; font-size: 11px; }
+            QPushButton#dropdownButton {
+                background-color: rgba(15, 23, 42, 180);
+                color: #f8fafc;
+                border: 1px solid rgba(148, 163, 184, 130);
+                border-radius: 10px;
+                padding: 4px 8px;
+            }
+            QFrame#dropdown {
+                background-color: rgba(15, 23, 42, 210);
+                border: 1px solid rgba(148, 163, 184, 120);
+                border-radius: 10px;
+            }
         """)
 
         self.timer = QTimer(self)
@@ -267,6 +303,44 @@ class WorldCupWidget(QWidget):
 
     def _worker_finished(self) -> None:
         self.worker = None
+
+    def _upcoming_worker_finished(self) -> None:
+        self.upcoming_worker = None
+
+    def toggle_upcoming_dropdown(self) -> None:
+        if self.upcoming_dropdown.isVisible():
+            self.upcoming_dropdown.hide()
+            self.upcoming_button.setText("Upcoming ▾")
+            return
+        self.upcoming_dropdown.show()
+        self.upcoming_button.setText("Upcoming ▴")
+        self._set_upcoming_rows(["Loading..."])
+        if self.upcoming_worker and self.upcoming_worker.isRunning():
+            return
+        self.upcoming_worker = UpcomingFetchWorker(self.provider)
+        self.upcoming_worker.fetched.connect(self.render_upcoming_matches)
+        self.upcoming_worker.finished.connect(self._upcoming_worker_finished)
+        self.upcoming_worker.start()
+
+    def render_upcoming_matches(self, matches: list[Match]) -> None:
+        if not matches:
+            self._set_upcoming_rows(["No upcoming matches"])
+            return
+        self._set_upcoming_rows([self._format_upcoming_match(match) for match in matches[:5]])
+
+    def _format_upcoming_match(self, match: Match) -> str:
+        kickoff = match.kickoff.astimezone().strftime("%a %H:%M") if match.kickoff else "TBD"
+        return f"{kickoff} · {match.home_team.display_name_with_flag} vs {match.away_team.display_name_with_flag}"
+
+    def _set_upcoming_rows(self, rows: list[str]) -> None:
+        while self.upcoming_dropdown_layout.count():
+            item = self.upcoming_dropdown_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for row in rows:
+            label = QLabel(row)
+            label.setWordWrap(False)
+            self.upcoming_dropdown_layout.addWidget(label)
 
     def render_match(self, match: Match | None, error: str = "") -> None:
         if self._closing:
@@ -344,6 +418,10 @@ class WorldCupWidget(QWidget):
         self.live_underline.set_active(False)
         self.standings_popup.hide()
         self.provider.close()
+        if self.upcoming_worker and self.upcoming_worker.isRunning():
+            self.upcoming_worker.terminate()
+            self.upcoming_worker.wait(250)
+            self.upcoming_worker = None
         if self.worker and self._worker_is_running():
             try:
                 self.worker.fetched.disconnect(self.render_match)
@@ -354,6 +432,9 @@ class WorldCupWidget(QWidget):
                 self.worker.terminate()
                 self.worker.wait(250)
             self.worker = None
+        if self.upcoming_worker and self.upcoming_worker.isRunning():
+            self.upcoming_worker.terminate()
+            self.upcoming_worker = None
 
     def _worker_is_running(self) -> bool:
         try:

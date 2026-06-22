@@ -4,6 +4,7 @@ from __future__ import annotations
 # are generated from ISO 3166-1 alpha-2 country codes. This map covers current
 # and common World Cup teams, plus a few API-specific variants.
 FIFA_TO_ISO2: dict[str, str] = {
+    "ALG": "DZ",
     "ARG": "AR",
     "AUS": "AU",
     "AUT": "AT",
@@ -26,8 +27,10 @@ FIFA_TO_ISO2: dict[str, str] = {
     "GHA": "GH",
     "GRE": "GR",
     "IRN": "IR",
+    "IRQ": "IQ",
     "ITA": "IT",
     "JPN": "JP",
+    "JOR": "JO",
     "KOR": "KR",
     "MAR": "MA",
     "MEX": "MX",
@@ -52,6 +55,7 @@ FIFA_TO_ISO2: dict[str, str] = {
     "TUR": "TR",
     "UKR": "UA",
     "URU": "UY",
+    "UZB": "UZ",
     "USA": "US",
     "WAL": "GB-WLS",
 }

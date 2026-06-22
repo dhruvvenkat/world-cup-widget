@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from PySide6.QtWidgets import QApplication, QLabel
 
@@ -14,6 +14,13 @@ class StaticProvider:
 
     def current_match(self):
         return self.match
+
+    def upcoming_matches(self, limit=5):
+        base = datetime.now(timezone.utc)
+        return [
+            Match("World Cup", Team("France", "FRA"), Team("Brazil", "BRA"), base + timedelta(hours=2), MatchStatus.SCHEDULED),
+            Match("World Cup", Team("England", "ENG"), Team("Ghana", "GHA"), base + timedelta(hours=5), MatchStatus.SCHEDULED),
+        ][:limit]
 
     def close(self):
         pass
@@ -61,4 +68,21 @@ def test_live_underline_runs_only_during_active_live_play():
     assert widget.live_underline.isHidden()
     assert not widget.live_underline.timer.isActive()
     assert widget.status.text() == "Halftime"
+    widget.shutdown()
+
+
+def test_upcoming_dropdown_renders_single_line_matches():
+    app = get_app()
+    match = Match("World Cup", Team("New Zealand", "NZL"), Team("Egypt", "EGY"), datetime.now(timezone.utc), MatchStatus.LIVE, 1, 0)
+    widget = WorldCupWidget(StaticProvider(match), refresh_seconds=60, live_refresh_seconds=5)
+
+    widget.toggle_upcoming_dropdown()
+    while widget.upcoming_worker and widget.upcoming_worker.isRunning():
+        app.processEvents()
+    app.processEvents()
+
+    assert not widget.upcoming_dropdown.isHidden()
+    rows = [label.text() for label in widget.upcoming_dropdown.findChildren(QLabel)]
+    assert any("FRA vs" in row for row in rows)
+    assert all("\n" not in row for row in rows)
     widget.shutdown()
