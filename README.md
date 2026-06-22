@@ -21,19 +21,21 @@ pip install -e '.[dev]'
 
 ## Live data configuration
 
-Create a free API token at <https://www.football-data.org/> and export it:
+Create a free API token at <https://www.football-data.org/> and put it in a local `.env` file:
 
-```bash
-export FOOTBALL_DATA_TOKEN='your-token-here'
+```dotenv
+FOOTBALL_DATA_TOKEN=your-token-here
 ```
 
-Optional settings:
+Optional `.env` settings:
 
-```bash
-export WORLD_CUP_COMPETITION=WC      # Football-Data competition code
-export WORLD_CUP_SEASON=2026         # Optional season filter
-export WORLD_CUP_REFRESH_SECONDS=60  # Minimum 10 seconds in the UI
+```dotenv
+WORLD_CUP_COMPETITION=WC      # Football-Data competition code
+WORLD_CUP_SEASON=2026         # Optional season filter
+WORLD_CUP_REFRESH_SECONDS=60  # Minimum 10 seconds in the UI
 ```
+
+`.env` is ignored by git so your token stays local.
 
 Without `FOOTBALL_DATA_TOKEN`, the widget displays a clearly-labelled sample fixture.
 

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
@@ -13,6 +16,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        load_dotenv(dotenv_path=Path.cwd() / ".env")
         season_raw = os.getenv("WORLD_CUP_SEASON")
         return cls(
             refresh_seconds=int(os.getenv("WORLD_CUP_REFRESH_SECONDS", "60")),

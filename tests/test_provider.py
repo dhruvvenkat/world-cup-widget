@@ -5,6 +5,21 @@ from world_cup_widget.models import MatchStatus
 from world_cup_widget.provider import FootballDataProvider, SampleProvider, build_provider
 
 
+def test_settings_loads_dotenv_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("FOOTBALL_DATA_TOKEN", raising=False)
+    monkeypatch.delenv("WORLD_CUP_REFRESH_SECONDS", raising=False)
+    tmp_path.joinpath(".env").write_text(
+        "FOOTBALL_DATA_TOKEN=dotenv-token\nWORLD_CUP_REFRESH_SECONDS=45\n",
+        encoding="utf-8",
+    )
+
+    settings = Settings.from_env()
+
+    assert settings.football_data_token == "dotenv-token"
+    assert settings.refresh_seconds == 45
+
+
 class FakeResponse:
     status_code = 200
     text = "ok"
