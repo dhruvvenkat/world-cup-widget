@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
@@ -41,7 +43,7 @@ class WorldCupWidget(QWidget):
             app.aboutToQuit.connect(self.shutdown)
 
         self.setWindowTitle("World Cup Widget")
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(self._overlay_flags())
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setMinimumWidth(340)
 
@@ -120,10 +122,31 @@ class WorldCupWidget(QWidget):
     def reinforce_always_on_top(self) -> None:
         if self._closing or not self.isVisible() or self.isMinimized():
             return
-        if not self.windowFlags() & Qt.WindowStaysOnTopHint:
-            self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        required_flags = self._overlay_flags()
+        if self.windowFlags() & required_flags != required_flags:
+            self.setWindowFlags(self.windowFlags() | required_flags)
             self.show()
         self.raise_()
+        self.activateWindow()
+        self._reinforce_x11_above_state()
+
+    def _overlay_flags(self) -> Qt.WindowType:
+        return Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+
+    def _reinforce_x11_above_state(self) -> None:
+        if not os.getenv("DISPLAY") or not shutil.which("wmctrl"):
+            return
+        try:
+            window_id = hex(int(self.winId()))
+            subprocess.run(
+                ["wmctrl", "-i", "-r", window_id, "-b", "add,above,sticky"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=0.2,
+            )
+        except Exception:
+            pass
 
     def refresh(self) -> None:
         if self._closing:
