@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+if [ -x "venv/bin/python" ]; then
+  exec env PYTHONPATH=src venv/bin/python -m world_cup_widget.app "$@"
+elif [ -x ".venv/bin/python" ]; then
+  exec env PYTHONPATH=src .venv/bin/python -m world_cup_widget.app "$@"
+else
+  exec env PYTHONPATH=src python -m world_cup_widget.app "$@"
+fi
