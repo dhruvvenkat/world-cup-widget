@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import os
 import signal
 import sys
+
+# GNOME/Wayland often ignores always-on-top for normal client windows. When an
+# X display is available, run this small overlay through XWayland/XCB so EWMH
+# states such as _NET_WM_STATE_ABOVE can be applied reliably with wmctrl.
+if os.getenv("DISPLAY") and not os.getenv("QT_QPA_PLATFORM"):
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication

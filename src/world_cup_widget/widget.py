@@ -131,7 +131,7 @@ class WorldCupWidget(QWidget):
         self._reinforce_x11_above_state()
 
     def _overlay_flags(self) -> Qt.WindowType:
-        return Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+        return Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
 
     def _reinforce_x11_above_state(self) -> None:
         if not os.getenv("DISPLAY") or not shutil.which("wmctrl"):
