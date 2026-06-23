@@ -14,6 +14,7 @@ FIFA_TO_ISO2: dict[str, str] = {
     "CHI": "CL",
     "CHN": "CN",
     "CMR": "CM",
+    "COD": "CD",
     "COL": "CO",
     "CRC": "CR",
     "CRO": "HR",
