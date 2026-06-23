@@ -1,6 +1,9 @@
 # World Cup Widget
 
-A native Python desktop widget that shows the current FIFA World Cup match. It uses PySide6/Qt, not HTML/CSS/JS.
+A native Python desktop widget that shows the current FIFA World Cup match. Built with PySide6/Qt.
+
+<img width="379" height="313" alt="image" src="https://github.com/user-attachments/assets/58de88df-7226-46a9-a905-9de1eaf8d385" />
+
 
 ## Features
 
